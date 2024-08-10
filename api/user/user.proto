@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+option go_package = "./";
+
+package user_proto;
+
+import "google/protobuf/empty.proto";
+
+service User{
+  rpc Login(google.protobuf.Empty) returns (google.protobuf.Empty);
+}
