@@ -11,12 +11,11 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// @title Fiber Example API
+// @title ProjectAPI
 // @version 1.0
-// @description This is a sample swagger for Fiber
-// @termsOfService http://swagger.io/terms/
-// @contact.name API Support
-// @contact.email fiber@swagger.io
+// @description This is a sample swagger for Fiber project
+// @contact.name Andrey
+// @contact.email damdinov@jcraster.ru
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 // @host localhost:10001

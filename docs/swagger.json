@@ -1,8 +1,20 @@
 {
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "description": "This is a sample swagger for Fiber project",
+        "title": "ProjectAPI",
+        "contact": {
+            "name": "Andrey",
+            "email": "damdinov@jcraster.ru"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
     },
+    "host": "localhost:10001",
+    "basePath": "/",
     "paths": {
         "/login": {
             "post": {
