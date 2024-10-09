@@ -64,7 +64,7 @@ func newTraceProvider() (*trace.TracerProvider, error) {
 		trace.WithResource(
 			resource.NewWithAttributes(
 				semconv.SchemaURL,
-				semconv.ServiceNameKey.String("product-app"),
+				semconv.ServiceName("product-app"),
 			),
 		),
 	)

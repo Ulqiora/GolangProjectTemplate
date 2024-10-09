@@ -14,22 +14,20 @@ func SpanNameStrategy(c *fiber.Ctx) string {
 }
 
 func AddToRouter(fiberApp fiber.Router, handler user.HttpHandler) {
-	cfg := swagg.Config{
+	_ = swagg.Config{
 		BasePath: "/",
 		FilePath: "./docs/swagger.json",
 		Path:     "swagger",
 		Title:    "Swagger API Docs",
 	}
 
-	fiberApp.Use(swagg.New(cfg))
+	//fiberApp.Use(swagg.New(cfg))
 
 	fiberApp.Use(otelfiber.Middleware(
 		otelfiber.WithServerName(config.Get().ServerInfo.Name),
 		otelfiber.WithTracerProvider(otel.GetTracerProvider()),
-		//otelfiber.WithMeterProvider(otel.GetMeterProvider()),
-		//otelfiber.WithPropagators(otel.GetTextMapPropagator()),
 		otelfiber.WithSpanNameFormatter(SpanNameStrategy),
 	))
 
-	fiberApp.Post("/login", handler.Login())
+	fiberApp.Post("/registration", handler.Register())
 }

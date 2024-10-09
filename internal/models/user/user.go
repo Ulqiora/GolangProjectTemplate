@@ -1,8 +1,9 @@
 package user
 
+type ID string
+
 type User struct {
-	ID             int64  `json:"id"`
-	Name           string `json:"name"`
-	SerialPassport string `json:"serial_passport"`
-	NumberPassport string `json:"number_passport"`
+	Id             ID     `json:"id"`
+	Email          string `json:"email"`
+	HashedPassword string `json:"password"`
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"GolangTemplateProject/pkg/aesgcm"
+	"GolangTemplateProject/pkg/email"
 	"gopkg.in/yaml.v2"
 )
 
@@ -32,9 +34,11 @@ type TLS struct {
 }
 
 type Config struct {
-	ServerInfo ServerInfo `json:"server_info" yaml:"server_info" validate:"required"`
-	Database   Database   `json:"database" yaml:"database" validate:"required"`
-	Trace      Trace      `json:"trace" yaml:"trace" validate:"required"`
+	ServerInfo ServerInfo   `json:"server_info" yaml:"server_info" validate:"required"`
+	Database   Database     `json:"database" yaml:"database" validate:"required"`
+	Trace      Trace        `json:"trace" yaml:"trace" validate:"required"`
+	Auth       Auth         `json:"auth" yaml:"auth" validate:"required"`
+	Email      email.Config `json:"email" yaml:"email" validate:"required"`
 }
 
 type ServerInfo struct {
@@ -82,6 +86,22 @@ type Trace struct {
 
 type Jaeger struct {
 	Connection Connection `json:"connection" yaml:"connection" validate:"required"`
+}
+
+// Auth
+
+type Auth struct {
+	JWT    JWT           `json:"jwt" yaml:"jwt" validate:"required"`
+	Bcrypt Bcrypt        `json:"bcrypt" yaml:"bcrypt" validate:"required"`
+	Aesgcm aesgcm.Config `json:"aesgcm_256" yaml:"aesgcm_256" validate:"required"`
+}
+
+type JWT struct {
+	SecretKey string `json:"secret_key" yaml:"secret_key" validate:"required"`
+}
+
+type Bcrypt struct {
+	Secret string `json:"secret_key" yaml:"secret_key" validate:"required"`
 }
 
 func LoadConfig() error {

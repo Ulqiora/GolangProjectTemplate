@@ -1,7 +1,12 @@
 package user
 
-import "context"
+import (
+	"context"
+
+	models "GolangTemplateProject/internal/models/user"
+)
 
 type Usecase interface {
-	Login(ctx context.Context, username string, password string) (string, error)
+	Registration(ctx context.Context, user models.RegistrationUserInfo) (models.RegistrationUserResponse, error)
+	Login(ctx context.Context, email string, password string) (string, error)
 }
