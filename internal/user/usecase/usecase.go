@@ -42,6 +42,7 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
+	span.AddEvent("generate hashed password complete")
 
 	secretKey, url, err := otp.GenerateOTPInfo(
 		totp.GenerateOpts{
@@ -49,12 +50,14 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 			AccountName: user.Login,
 		},
 	)
+	span.AddEvent("generate OTP objects completed")
 
 	secretKeyEncrypted, nonce, err := u.crypter.Encrypt([]byte(u.cfg.Auth.Aesgcm.SecretKey), []byte(secretKey))
 	if err != nil {
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
+	span.AddEvent("secret key encrypted")
 
 	uuid, err := u.psqlRepo.Registration(ctx, dto.RegistrationUserInfoDTO{
 		Login:         user.Login,
@@ -68,6 +71,7 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
+	span.AddEvent("secret key encrypted")
 
 	if err = u.emailManager.SendRegistrationNotification(&email.Message{
 		To:      user.Email,
@@ -77,6 +81,7 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
+	span.AddEvent("notification of registration sended")
 	return models.RegistrationUserResponse{
 		UserUUID: uuid,
 		OtpUrl:   url,

@@ -1,0 +1,50 @@
+version: "3.7"
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+      ZOOKEEPER_SERVERS: zookeeper:2888:3888
+    healthcheck:
+      test: echo stat | nc localhost 2181
+      interval: 10s
+      timeout: 10s
+      retries: 3
+    networks:
+      - project
+    ports:
+      - "2181:2181"
+      - "2888:2888"
+      - "3888:3888"
+
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      - zookeeper
+    networks:
+      - project
+    ports:
+      - "9091:9091"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTNERS: LISTNER_INT://kafka1:9091,LISTENER_EXT://0.0.0.0:9091
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: LISTNER_INT://kafka1:9091,LISTENER_EXT://localhost:9091
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTNER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: LISTNER_INT
+      ZOOKEEPER: zookeeper:2181
+
+networks:
+  project:
+    external: true
+    name: ${NETWORK_NAME}

@@ -10,7 +10,6 @@ import (
 	"GolangTemplateProject/internal/user/usecase"
 	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
 	"github.com/gofiber/fiber/v2"
-	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
 
@@ -36,17 +35,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	connectionURL := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		config.Get().Database.Postgres.Host,
-		config.Get().Database.Postgres.Port,
-		config.Get().Database.Postgres.User,
-		config.Get().Database.Postgres.Password,
-		config.Get().Database.Postgres.Database,
-		config.Get().Database.Postgres.SSLMode,
-	)
-
-	database, err := sqlx.Connect("postgres", connectionURL)
 
 	usecaseUser := usecase.NewUserUsecase(postgresql.NewUserRepository(database))
 	service := http.NewUserService(usecaseUser)

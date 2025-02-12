@@ -70,6 +70,17 @@ type Postgres struct {
 	} `json:"settings" yaml:"settings" validate:"required"`
 }
 
+func (p *Postgres) ConnectionString() string {
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		p.Host,
+		p.Port,
+		p.User,
+		p.Password,
+		p.Database,
+		p.SSLMode,
+	)
+}
+
 type Minio struct {
 	Host              string `json:"host" yaml:"host" validate:"required"`
 	Port              string `json:"port" yaml:"port" validate:"required"`

@@ -1,16 +1,22 @@
-version: '3'
 services:
   postgresql-db:
     restart: always
-    image: postgres:14.1-alpine
+    image: postgres:16
     environment:
       - POSTGRES_DB=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
       - 'postgresql_data:/var/lib/cli/data'
+    networks:
+      - project
     ports:
       - "5435:5432"
+
+networks:
+  project:
+    external: true
+    name: ${NETWORK_NAME}
 
 volumes:
   postgresql_data:

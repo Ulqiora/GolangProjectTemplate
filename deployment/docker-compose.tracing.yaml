@@ -1,10 +1,11 @@
-version: '3'
 services:
   node_exporter:
     image: prom/node-exporter:latest
     container_name: node_exporter
     ports:
       - "9100:9100"
+    networks:
+      - project
     restart: unless-stopped
 
   grafana:
@@ -16,6 +17,8 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
+    networks:
+      - project
     restart: unless-stopped
 
   prometheus:
@@ -36,6 +39,8 @@ services:
     container_name: "tracing-test-service-jaeger"
     environment:
       - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    networks:
+      - project
     ports:
       - "16686:16686"   # Jaeger UI
       - "4318:4318"     # OTLP/gRPC
@@ -44,3 +49,8 @@ services:
 volumes:
   prometheus_data:
   grafana_data:
+
+networks:
+  project:
+    external: true
+    name: ${NETWORK_NAME}
