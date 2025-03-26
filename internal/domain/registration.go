@@ -1,4 +1,4 @@
-package user
+package domain
 
 type RegistrationUserInfo struct {
 	Login    string `json:"login"`

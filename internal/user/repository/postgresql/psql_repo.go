@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	models "GolangTemplateProject/internal/models/user"
+	models "GolangTemplateProject/internal/domain"
 	"GolangTemplateProject/internal/user/repository/dto"
 	"github.com/jmoiron/sqlx"
 )

@@ -1,15 +1,15 @@
-package usecase
+package authorization
 
 import (
 	"context"
 	"time"
 
 	"GolangTemplateProject/config"
-	models "GolangTemplateProject/internal/models/user"
+	models "GolangTemplateProject/internal/domain"
 	"GolangTemplateProject/internal/user"
 	"GolangTemplateProject/internal/user/repository/dto"
-	"GolangTemplateProject/pkg/aesgcm"
-	"GolangTemplateProject/pkg/bcrypt"
+	"GolangTemplateProject/pkg/cripto/aesgcm"
+	"GolangTemplateProject/pkg/cripto/bcrypt"
 	"GolangTemplateProject/pkg/email"
 	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
 	"GolangTemplateProject/pkg/otp"

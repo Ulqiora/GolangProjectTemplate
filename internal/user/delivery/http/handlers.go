@@ -1,9 +1,7 @@
 package http
 
 import (
-	"time"
-
-	models "GolangTemplateProject/internal/models/user"
+	models "GolangTemplateProject/internal/domain"
 	"GolangTemplateProject/internal/user"
 	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
 	"github.com/gofiber/fiber/v2"
@@ -37,9 +35,6 @@ func (u UserService) Register() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		ctx, span := open_telemetry.Tracer.Start(c.Context(), "UserService.Register")
 		defer span.End()
-		c.Context()
-
-		time.Sleep(time.Second)
 
 		var info models.RegistrationUserInfo
 		if err := c.BodyParser(&info); err != nil {

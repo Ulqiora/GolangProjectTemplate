@@ -3,7 +3,7 @@ package user
 import (
 	"context"
 
-	models "GolangTemplateProject/internal/models/user"
+	models "GolangTemplateProject/internal/domain"
 )
 
 type Usecase interface {

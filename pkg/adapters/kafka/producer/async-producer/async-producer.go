@@ -3,7 +3,7 @@ package async_producer
 import (
 	"context"
 
-	"GolangTemplateProject/pkg/kafka/producer"
+	"GolangTemplateProject/pkg/adapters/kafka/producer"
 	"github.com/IBM/sarama"
 )
 

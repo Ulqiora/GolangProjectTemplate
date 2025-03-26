@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"GolangTemplateProject/config"
+	"GolangTemplateProject/internal/usecase/authorization"
 	"GolangTemplateProject/internal/user/delivery/http"
 	"GolangTemplateProject/internal/user/repository/postgresql"
-	"GolangTemplateProject/internal/user/usecase"
 	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/lib/pq"
@@ -36,7 +36,7 @@ func main() {
 		panic(err)
 	}
 
-	usecaseUser := usecase.NewUserUsecase(postgresql.NewUserRepository(database))
+	usecaseUser := authorization.NewUserUsecase(postgresql.NewUserRepository(database))
 	service := http.NewUserService(usecaseUser)
 
 	app := fiber.New()
