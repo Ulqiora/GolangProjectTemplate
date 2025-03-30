@@ -12,7 +12,7 @@ PROJECT_NAME=MYSERVICE
 NETWORK_NAME=$(PROJECT_NAME)
 
 .PHONY:all
-all: gen-tls-ca
+all: dependup
 
 
 # --------------------SERVICES-UP
@@ -21,8 +21,8 @@ dependup:
         docker network create ${NETWORK_NAME}; \
     fi
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.database.yaml up --build -d
-	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.tracing.yaml up --build -d
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.kafka.yaml up --build -d
+	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.tracing.yaml up --build -d
 # --------------------GENERATE-GOLANG-GEN-GO
 generate-api:
 	mkdir -p ${PROTO_TARGET}
