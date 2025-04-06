@@ -1,12 +1,13 @@
+version: "3.7"
+
 services:
   node_exporter:
     image: prom/node-exporter:latest
     container_name: node_exporter
     ports:
       - "9100:9100"
-    networks:
-      - project
     restart: unless-stopped
+
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter
     restart: always
@@ -15,8 +16,7 @@ services:
 #      PG_EXPORTER_EXTEND_QUERY_PATH: /queries.yaml  # Опционально для расширенных метрик
     ports:
       - "9187:9187"
-    networks:
-      - project
+    
 
   grafana:
     image: grafana/grafana:latest
@@ -30,8 +30,6 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
-    networks:
-      - project
     depends_on:
       - prometheus
     restart: unless-stopped
@@ -40,7 +38,7 @@ services:
     image: prom/prometheus:latest
     container_name: prometheus
     volumes:
-      - ./../config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -57,8 +55,6 @@ services:
     container_name: jaeger
     environment:
       - COLLECTOR_ZIPKIN_HOST_PORT=:9411
-    networks:
-      - project
     ports:
       - "16686:16686"   # Jaeger UI
       - "4318:4318"     # OTLP/gRPC
@@ -69,6 +65,6 @@ volumes:
   grafana_data:
 
 networks:
-  project:
+  default:
     external: true
     name: ${NETWORK_NAME}

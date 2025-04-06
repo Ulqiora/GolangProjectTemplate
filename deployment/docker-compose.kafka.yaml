@@ -11,16 +11,16 @@ services:
       ZOOKEEPER_SYNC_LIMIT: 2
       ZOOKEEPER_SERVERS: zookeeper:2888:3888
     healthcheck:
-      test: echo stat | nc localhost 2181
+      test: ["CMD", "sh", "-c", "echo stat | nc 127.0.0.1 2181 | grep Mode"]
       interval: 10s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-    networks:
-      - project
     ports:
       - "2181:2181"
       - "2888:2888"
       - "3888:3888"
+    volumes:
+      - ./zookeeper/data:/var/lib/zookeeper/data
 
   kafka1:
     image: confluentinc/cp-kafka:latest
@@ -31,8 +31,6 @@ services:
       retries: 3
     depends_on:
       - zookeeper
-    networks:
-      - project
     ports:
       - "9091:9091"
     environment:
@@ -43,8 +41,21 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTNER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: LISTNER_INT
       ZOOKEEPER: zookeeper:2181
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "10000:8080"
+    environment:
+      # Настройки для подключения к Kafka
+      KAFKA_CLUSTERS_0_NAME: kafka_project
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:9091
+
+#      # Включение базовой аутентификации
+#      SPRING_SECURITY_USER_NAME: login  # Логин
+#      SPRING_SECURITY_USER_PASSWORD: pass
 
 networks:
-  project:
+  default:
     external: true
     name: ${NETWORK_NAME}

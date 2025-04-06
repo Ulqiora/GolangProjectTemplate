@@ -1,3 +1,5 @@
+version: "3.7"
+
 services:
   postgresql-db:
     restart: always
@@ -8,13 +10,11 @@ services:
       - POSTGRES_PASSWORD=postgres
     volumes:
       - 'postgresql_data:/var/lib/cli/data'
-    networks:
-      - project
     ports:
       - "5435:5432"
 
 networks:
-  project:
+  default:
     external: true
     name: ${NETWORK_NAME}
 
