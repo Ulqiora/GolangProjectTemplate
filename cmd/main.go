@@ -8,6 +8,7 @@ import (
 	"GolangTemplateProject/internal/usecase/authorization"
 	"GolangTemplateProject/internal/user/delivery/http"
 	"GolangTemplateProject/internal/user/repository/postgresql"
+	"GolangTemplateProject/pkg/adapters/postgres"
 	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/lib/pq"
@@ -35,6 +36,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	postgres.New(ctx)
 
 	usecaseUser := authorization.NewUserUsecase(postgresql.NewUserRepository(database))
 	service := http.NewUserService(usecaseUser)

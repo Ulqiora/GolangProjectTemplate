@@ -2,6 +2,8 @@ package async_producer
 
 import (
 	"context"
+	"fmt"
+	"sync"
 
 	"GolangTemplateProject/pkg/adapters/kafka/producer"
 	"github.com/IBM/sarama"
@@ -14,18 +16,16 @@ type TopicProducer struct {
 }
 
 func NewTopicProducer(addresses []string, config producer.Config, logger sarama.StdLogger) (*TopicProducer, error) {
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Producer.Return.Errors = config.SaveReturningStatus.Errors
-	saramaConfig.Producer.Return.Successes = config.SaveReturningStatus.Succeeded
-	saramaConfig.Producer.Compression = sarama.CompressionNone
-	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
-	saramaConfig.Producer.Partitioner = sarama.NewRoundRobinPartitioner
+	saramaConfig, err := producer.BuildProduceConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("error building kafka sarama config: %s", err.Error())
+	}
 	syncProducer, err := sarama.NewAsyncProducer(addresses, saramaConfig)
 	if err != nil {
 		return nil, err
 	}
 	return &TopicProducer{
-		topic:          config.Topics,
+		topic:          config.Topic,
 		producerSamara: syncProducer,
 		logger:         logger,
 	}, nil
@@ -42,8 +42,10 @@ func (t *TopicProducer) TopicName() string {
 	return t.topic
 }
 
-func (t *TopicProducer) Run(ctx context.Context) error {
+func (t *TopicProducer) Run(ctx context.Context, group *sync.WaitGroup) error {
+	group.Add(1)
 	go func() {
+		defer group.Done()
 		select {
 		case err := <-t.producerSamara.Errors():
 			t.logger.Println(err)
@@ -55,4 +57,14 @@ func (t *TopicProducer) Run(ctx context.Context) error {
 		}
 	}()
 	return nil
+}
+
+func (t *TopicProducer) CommitTx() error {
+	return t.producerSamara.CommitTxn()
+}
+func (t *TopicProducer) BeginTx() error {
+	return t.producerSamara.BeginTxn()
+}
+func (t *TopicProducer) AbortTx() error {
+	return t.producerSamara.AbortTxn()
 }

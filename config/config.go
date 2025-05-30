@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"GolangTemplateProject/pkg/adapters/postgres"
 	"GolangTemplateProject/pkg/cripto/aesgcm"
-	"GolangTemplateProject/pkg/email"
 	"gopkg.in/yaml.v2"
 )
 
@@ -34,11 +34,11 @@ type TLS struct {
 }
 
 type Config struct {
-	ServerInfo ServerInfo   `json:"server_info" yaml:"server_info" validate:"required"`
-	Database   Database     `json:"database" yaml:"database" validate:"required"`
-	Trace      Trace        `json:"trace" yaml:"trace" validate:"required"`
-	Auth       Auth         `json:"auth" yaml:"auth" validate:"required"`
-	Email      email.Config `json:"email" yaml:"email" validate:"required"`
+	ServerInfo ServerInfo `json:"server_info" yaml:"server_info" validate:"required"`
+	Database   Database   `json:"database" yaml:"database" validate:"required"`
+	Trace      Trace      `json:"trace" yaml:"trace" validate:"required"`
+	Auth       Auth       `json:"auth" yaml:"auth" validate:"required"`
+	//Email      email.Config `json:"email" yaml:"email" validate:"required"`
 }
 
 type ServerInfo struct {
@@ -51,8 +51,8 @@ type ServerInfo struct {
 // DATABASE PARAMS
 
 type Database struct {
-	Postgres Postgres `json:"postgres" yaml:"postgres" validate:"required"`
-	Minio    Minio    `json:"minio" yaml:"minio" validate:"required"`
+	Postgres postgres.Config `json:"postgres" yaml:"postgres" validate:"required"`
+	//Minio    Minio             `json:"minio" yaml:"minio" validate:"required"`
 }
 
 type Minio struct {

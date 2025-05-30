@@ -45,7 +45,7 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "10000:8080"
+      - "10002:8080"
     environment:
       # Настройки для подключения к Kafka
       KAFKA_CLUSTERS_0_NAME: kafka_project

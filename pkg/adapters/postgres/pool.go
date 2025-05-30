@@ -11,6 +11,12 @@ type Postgres struct {
 	pgx *pgxpool.Pool
 }
 
+type IPostgres interface {
+	Connection(ctx context.Context) (*Connection, error)
+	Ping(ctx context.Context, pool *Postgres) error
+	Close() error
+}
+
 func New(ctx context.Context, cfg *Config) (*Postgres, error) {
 	connectionStr := cfg.ConnectionString()
 	pool, err := pgxpool.New(ctx, connectionStr)

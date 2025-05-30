@@ -1,7 +1,10 @@
 package kafka
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 type Runnable interface {
-	Run(ctx context.Context) error
+	Run(ctx context.Context, group *sync.WaitGroup) error
 }
