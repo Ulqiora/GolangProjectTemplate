@@ -1,0 +1,31 @@
+package closer
+
+type Closer interface {
+	Close() error
+}
+
+type CloseFunc func() error
+
+type GracefulCloser struct {
+	CloseObjects []CloseFunc
+}
+
+func NewGracefulCloser(closers ...CloseFunc) *GracefulCloser {
+	object := GracefulCloser{}
+	object.CloseObjects = append(object.CloseObjects, closers...)
+	return &object
+}
+
+func (object *GracefulCloser) Close() error {
+	for _, closer := range object.CloseObjects {
+		err := closer()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (object *GracefulCloser) AddCloser(closers ...CloseFunc) {
+	object.CloseObjects = append(object.CloseObjects, closers...)
+}

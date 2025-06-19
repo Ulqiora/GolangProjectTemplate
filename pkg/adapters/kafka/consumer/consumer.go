@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"GolangTemplateProject/pkg/adapters/kafka"
 	"github.com/IBM/sarama"
 )
 
@@ -14,9 +15,29 @@ type MessageObject interface {
 	Unmarshal([]byte) error
 }
 
+type User struct {
+	Username string `json:"username"`
+}
+
+func (u User) Marshal() ([]byte, error) {
+	return json.Marshal(u)
+}
+
+func (u User) Unmarshal(data []byte) error {
+	return json.Unmarshal(data, &u)
+}
+
 type MapValues map[string]string
 
-type ExecDomainFunc[T MessageObject] func(ctx context.Context, object T, values MapValues) error
+func NewMapValues(header []*sarama.RecordHeader) *MapValues {
+	values := make(MapValues)
+	for _, h := range header {
+		values[string(h.Key)] = string(h.Value)
+	}
+	return &values
+}
+
+type ExecDomainFunc[T MessageObject] func(ctx context.Context, object *T, values *MapValues) error
 
 type TopicConsumerGroup[M MessageObject] struct {
 	groupID        string
@@ -26,7 +47,7 @@ type TopicConsumerGroup[M MessageObject] struct {
 	base           *topicConsumerGroupBase[M]
 }
 
-func NewTopicConsumerGroup[M MessageObject](config Config, logger sarama.StdLogger, domainFunc ExecDomainFunc[M]) (*TopicConsumerGroup[M], error) {
+func NewTopicConsumerGroup[M MessageObject](config *Config, logger sarama.StdLogger, domainFunc ExecDomainFunc[M]) (kafka.Consumer, error) {
 	saramaConfig := sarama.NewConfig()
 	if val, ok := offsetMap[config.GroupSettings.OffsetInitial]; ok {
 		saramaConfig.Consumer.Offsets.Initial = val
@@ -122,7 +143,7 @@ func (t *topicConsumerGroupBase[T]) ConsumeClaim(session sarama.ConsumerGroupSes
 			if err != nil {
 				t.logger.Printf("Error on unmarshalling message: %s\n", err)
 			}
-			if err = t.execFunction(session.Context(), object, NewMapValues(message.Headers)); err == nil {
+			if err = t.execFunction(session.Context(), &object, NewMapValues(message.Headers)); err == nil {
 				session.MarkMessage(message, "")
 			}
 		case <-session.Context().Done():

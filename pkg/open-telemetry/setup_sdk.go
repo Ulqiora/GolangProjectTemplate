@@ -9,13 +9,13 @@ import (
 
 var Tracer = otel.Tracer("otel")
 
-func SetupOpenTelemetrySDK(ctx context.Context) (func(context.Context) error, error) {
+func SetupOpenTelemetrySDK(ctx context.Context) (func() error, error) {
 	var shutdownFuncs []func(context.Context) error
 
 	// shutdown calls cleanup functions registered via shutdownFuncs.
 	// The errors from the calls are joined.
 	// Each registered cleanup will be invoked once.
-	shutdown := func(ctx context.Context) error {
+	shutdown := func() error {
 		var err error
 		for _, fn := range shutdownFuncs {
 			err = errors.Join(err, fn(ctx))
@@ -25,7 +25,7 @@ func SetupOpenTelemetrySDK(ctx context.Context) (func(context.Context) error, er
 	}
 	var err error
 	handleErr := func(inErr error) {
-		err = errors.Join(inErr, shutdown(ctx))
+		err = errors.Join(inErr, shutdown())
 	}
 	// Set up propagator.
 	//prop := NewPropagator()
