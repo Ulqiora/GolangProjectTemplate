@@ -2,45 +2,33 @@ version: "3.7"
 
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    environment:
-      ZOOKEEPER_SERVER_ID: 1
-      ZOOKEEPER_TICK_TIME: 2000
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_INIT_LIMIT: 5
-      ZOOKEEPER_SYNC_LIMIT: 2
-      ZOOKEEPER_SERVERS: zookeeper:2888:3888
-    healthcheck:
-      test: ["CMD", "sh", "-c", "echo stat | nc 127.0.0.1 2181 | grep Mode"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+    container_name: zookeeper
+    image: wurstmeister/zookeeper
     ports:
-      - "2181:2181"
-      - "2888:2888"
-      - "3888:3888"
-    volumes:
-      - ./zookeeper/data:/var/lib/zookeeper/data
+      - "62181:2181"
+    networks:
+      - default
 
-  kafka1:
-    image: confluentinc/cp-kafka:latest
-    healthcheck:
-      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  kafka:
+    image: wurstmeister/kafka
+    container_name: kafka
     depends_on:
       - zookeeper
     ports:
-      - "9091:9091"
+      - "9092:9092"
+      - "29092:29092"
+    networks:
+      - default
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_LISTNERS: LISTNER_INT://kafka1:9091,LISTENER_EXT://0.0.0.0:9091
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9092,OUTSIDE://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9092,OUTSIDE://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: LISTNER_INT://kafka1:9091,LISTENER_EXT://localhost:9091
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: LISTNER_INT:PLAINTEXT,LISTENER_EXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: LISTNER_INT
-      ZOOKEEPER: zookeeper:2181
+      KAFKA_CREATE_TOPICS: "legals:1:1,offices:1:1,payments:1:1,documents:1:1,rids_statuses:1:1,print_forms:1:1"
+      KAFKA_GROUP_ID: "companydoc-group-id"
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
@@ -49,7 +37,13 @@ services:
     environment:
       # Настройки для подключения к Kafka
       KAFKA_CLUSTERS_0_NAME: kafka_project
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:9091
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPERCONNECT: zookeeper:2181
+      KAFKA_CLUSTERS_0_DEFAULT_TOPIC: user
+    depends_on:
+      - kafka
+    networks:
+      - default
 
 #      # Включение базовой аутентификации
 #      SPRING_SECURITY_USER_NAME: login  # Логин

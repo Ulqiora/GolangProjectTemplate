@@ -9,6 +9,7 @@ GRCP_PROTO_FOLDERS=$(shell find $(GRPC_SOURCE) -type f)
 # DEPLOYMENTS
 DC_FOLDER=./deployment
 PROJECT_NAME=MYSERVICE
+BUILD_EXEC?=outbox
 NETWORK_NAME=$(PROJECT_NAME)
 
 .PHONY:all
@@ -16,13 +17,16 @@ all: dependup
 
 
 # --------------------SERVICES-UP
-dependup:
+.PHONY: dependup
+dependup: build docker-image
 	if ! docker network inspect ${NETWORK_NAME} >/dev/null 2>&1; then \
         docker network create ${NETWORK_NAME}; \
     fi
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.database.yaml up --build -d
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.kafka.yaml up --build -d
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.tracing.yaml up --build -d
+	sleep 5
+	NETWORK_NAME=$(NETWORK_NAME) DOCKER_IMAGE=${BUILD_EXEC} docker-compose -f $(DC_FOLDER)/docker-compose.app.yaml up --build -d
 # --------------------GENERATE-GOLANG-GEN-GO
 generate-api:
 	mkdir -p ${PROTO_TARGET}
@@ -65,3 +69,14 @@ gen-tls-ca:
 	@openssl req -new -key $(SECRET_KEYS_FOLDER)/server.key -out $(SECRET_KEYS_FOLDER)/server.csr -subj "/CN=localhost"
 	@openssl x509 -req -days 365 -in $(SECRET_KEYS_FOLDER)/server.csr -signkey $(SECRET_KEYS_FOLDER)/server.key -out $(SECRET_KEYS_FOLDER)/server.crt
 
+# --------------------BUILD-APPLICATION
+.PHONY:docker-image
+docker-image:
+	docker build -f ./deployment/${BUILD_EXEC}/Dockerfile --rm -t ${BUILD_EXEC} . --build-arg PROJECT=${BUILD_EXEC}
+
+.PHONY:build
+build:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build ${LDFLAGS} -o builds/${BUILD_EXEC}/${BUILD_EXEC} ./cmd/${BUILD_EXEC}
+.PHONY:debug
+debug: build
+	dlv debug ./cmd/${BUILD_EXEC} --headless --listen=:2345 --api-version=2

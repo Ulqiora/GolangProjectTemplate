@@ -1,5 +1,7 @@
 package closer
 
+import "errors"
+
 type Closer interface {
 	Close() error
 }
@@ -17,13 +19,14 @@ func NewGracefulCloser(closers ...CloseFunc) *GracefulCloser {
 }
 
 func (object *GracefulCloser) Close() error {
+	var errs []error
 	for _, closer := range object.CloseObjects {
 		err := closer()
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (object *GracefulCloser) AddCloser(closers ...CloseFunc) {

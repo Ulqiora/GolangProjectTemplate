@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"GolangTemplateProject/pkg/adapters/postgres"
-	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -13,27 +12,35 @@ const (
 	TxField = "transaction"
 )
 
+type ScanFunc func(dest ...any) error
+
 type BaseModel interface {
 	Params() map[string]interface{}
 	Fields() []string
 	PrimaryKey() any
+	Scan(fields []string, scan ScanFunc) error
 }
 
-func findExecutor(ctx context.Context, pool postgres.IPostgres) (postgres.SqlExecutor, error) {
+func findExecutor(ctx context.Context, pool postgres.IPostgres) (postgres.SqlExecutor, func(), error) {
 	var connection postgres.SqlExecutor
+	var fn func()
 	if tx, ok := ctx.Value(TxField).(pgx.Tx); ok {
 		connection = tx
 	} else {
 		impl, err := pool.Connection(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("[BaseRepositoryImpl]: %w", err)
+			return nil, nil, fmt.Errorf("[BaseRepositoryImpl]: %w", err)
 		}
+		fn = impl.Release
 		connection = impl
 	}
-	return connection, nil
+	return connection, fn, nil
 }
 
-type BaseRepository interface {
+type BaseRepository[M BaseModel] interface {
+	SelectOne(ctx context.Context, sql string, args ...any) (*M, error)
+	Select(ctx context.Context, sql string, args ...any) ([]*M, error)
+	Create(ctx context.Context, m *M) error
 }
 
 type BaseRepositoryImpl[M BaseModel] struct {
@@ -42,7 +49,7 @@ type BaseRepositoryImpl[M BaseModel] struct {
 	tableName    string
 }
 
-func NewBaseRepository[M BaseModel](pool *postgres.Postgres, tablename string, generateFunc func() *M) BaseRepository {
+func NewBaseRepository[M BaseModel](pool postgres.IPostgres, tablename string, generateFunc func() *M) BaseRepository[M] {
 	return &BaseRepositoryImpl[M]{
 		pool:         pool,
 		generateFunc: generateFunc,
@@ -51,7 +58,12 @@ func NewBaseRepository[M BaseModel](pool *postgres.Postgres, tablename string, g
 }
 
 func (repo *BaseRepositoryImpl[M]) SelectOne(ctx context.Context, sql string, args ...any) (*M, error) {
-	connection, err := findExecutor(ctx, repo.pool)
+	connection, fn, err := findExecutor(ctx, repo.pool)
+	defer func() {
+		if fn != nil {
+			fn()
+		}
+	}()
 	if err != nil {
 		return nil, err
 	}
@@ -66,18 +78,27 @@ func (repo *BaseRepositoryImpl[M]) SelectOne(ctx context.Context, sql string, ar
 }
 
 func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args ...any) ([]*M, error) {
-	connection, err := findExecutor(ctx, repo.pool)
+	connection, fn, err := findExecutor(ctx, repo.pool)
+	defer func() {
+		if fn != nil {
+			fn()
+		}
+	}()
 	if err != nil {
 		return nil, err
 	}
-	row, err := connection.Query(ctx, sql, args...)
-	defer row.Close()
+	rows, err := connection.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	fields := repo.fields(rows)
 
 	var objects []*M
 
-	for row.Next() {
+	for rows.Next() {
 		object := repo.generateFunc()
-		err = row.Scan(object)
+		err := (*object).Scan(fields, rows.Scan)
 		if err != nil {
 			return nil, err
 		}
@@ -88,31 +109,41 @@ func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args 
 }
 
 func (repo *BaseRepositoryImpl[M]) Create(ctx context.Context, m *M) error {
-	connection, err := findExecutor(ctx, repo.pool)
-	if err != nil {
-		return err
-	}
-	values := m.Params()
-	squirell
-
-	sql, args, err2 := squirrel.
-		StatementBuilder.
-		PlaceholderFormat(squirrel.Dollar).
-		Insert(Self.table).
-		SetMap(values).
-		ToSql()
-	if err2 != nil {
-		return err2
-	}
-
-	conn, err3 := Self.db.Conn(ctx)
-	if err3 != nil {
-		return err3
-	}
-
-	if _, err = conn.Exec(ctx, sql, args...); err != nil {
-		return err
-	}
+	//connection, err := findExecutor(ctx, repo.pool)
+	//if err != nil {
+	//	return err
+	//}
+	//values := m.Params()
+	//squirell
+	//
+	//sql, args, err2 := squirrel.
+	//	StatementBuilder.
+	//	PlaceholderFormat(squirrel.Dollar).
+	//	Insert(Self.table).
+	//	SetMap(values).
+	//	ToSql()
+	//if err2 != nil {
+	//	return err2
+	//}
+	//
+	//conn, err3 := Self.db.Conn(ctx)
+	//if err3 != nil {
+	//	return err3
+	//}
+	//
+	//if _, err = conn.Exec(ctx, sql, args...); err != nil {
+	//	return err
+	//}
 
 	return nil
+}
+
+func (repo *BaseRepositoryImpl[M]) fields(rows pgx.Rows) []string {
+	columns := rows.FieldDescriptions()
+	fields := make([]string, 0, len(columns))
+
+	for _, d := range columns {
+		fields = append(fields, d.Name)
+	}
+	return fields
 }

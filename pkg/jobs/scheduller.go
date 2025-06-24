@@ -1,19 +1,19 @@
 package jobs
 
 import (
-	"company-doc/internal/adapters/secondary/metrics/prometheuses"
 	"github.com/go-co-op/gocron/v2"
+	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.wildberries.ru/wbbank/go-dpkg/dlog/v1"
 )
 
 type builderObject interface {
-	build(scheduler gocron.Scheduler, logger dlog.Logger, gauge prometheuses.Adapter) gocron.Job
+	build(scheduler gocron.Scheduler, logger dlog.Logger, gauge prometheus.Gauge) gocron.Job
 }
 
 type Scheduler struct {
 	logger  dlog.Logger
 	impl    gocron.Scheduler
-	metrics prometheuses.Adapter
+	metrics prometheus.Gauge
 }
 
 func (s *Scheduler) Start() {
@@ -21,7 +21,8 @@ func (s *Scheduler) Start() {
 }
 
 func (s *Scheduler) Stop() error {
-	return s.impl.StopJobs()
+	// Даём задачам 5 секунд на завершение
+	return s.impl.Shutdown()
 }
 
 func (s *Scheduler) AddJob(jobBuilders ...builderObject) {
@@ -31,7 +32,7 @@ func (s *Scheduler) AddJob(jobBuilders ...builderObject) {
 	}
 }
 
-func NewJobScheduler(logger dlog.Logger, metrics prometheuses.Adapter, options ...gocron.SchedulerOption) (Scheduler, error) {
+func NewJobScheduler(logger dlog.Logger, metrics prometheus.Gauge, options ...gocron.SchedulerOption) (Scheduler, error) {
 	scheduler, err := gocron.NewScheduler(options...)
 	if err != nil {
 		return Scheduler{}, err

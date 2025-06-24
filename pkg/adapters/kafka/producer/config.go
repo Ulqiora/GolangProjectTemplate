@@ -13,7 +13,7 @@ type Config struct {
 	// Topic - one topic name
 	Topic string `yaml:"topic"`
 	// Brokers - hosts of kafka brokers
-	Brokers []string `yaml:"brokers"`
+	Brokers []string `yaml:"brokers" `
 	// CompressionType must be equal [0,1,2,3,4]
 	CompressionType int8            `yaml:"compression_type"`
 	Network         Network         `yaml:"network"`
@@ -60,10 +60,11 @@ func BuildProduceConfig(config Config) (*sarama.Config, error) {
 	saramaConfig.Producer.Return.Errors = config.ProduceSettings.SaveReturningStatus.Errors
 	saramaConfig.Producer.Return.Successes = config.ProduceSettings.SaveReturningStatus.Succeeded
 	saramaConfig.Producer.Idempotent = config.ProduceSettings.Idempotency
-	saramaConfig.Producer.Transaction.ID = config.ProduceSettings.TransactionalID
+	//saramaConfig.Producer.Transaction.ID = config.ProduceSettings.TransactionalID
 	saramaConfig.Producer.Compression = sarama.CompressionNone
-	saramaConfig.Producer.RequiredAcks = sarama.WaitForLocal
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
 	saramaConfig.Producer.Partitioner = sarama.NewRoundRobinPartitioner
+	saramaConfig.Net.MaxOpenRequests = 1
 	if config.Network.Sasl.Enable == true {
 		saramaConfig.Net.SASL.Enable = true
 		saramaConfig.Net.SASL.User = config.Network.Sasl.Username
@@ -85,5 +86,6 @@ func BuildProduceConfig(config Config) (*sarama.Config, error) {
 			RootCAs:      caCertPool,
 		}
 	}
+
 	return saramaConfig, nil
 }

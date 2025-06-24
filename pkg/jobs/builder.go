@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"company-doc/internal/adapters/secondary/metrics/prometheuses"
 	"github.com/go-co-op/gocron/v2"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.wildberries.ru/wbbank/go-dpkg/dlog/v1"
 )
 
@@ -28,7 +28,7 @@ func CronJob(crontab string, withSeconds bool) func() gocron.JobDefinition {
 type JobBuilder interface {
 	SetTask(fn func(ctx context.Context) error, ctx context.Context) JobBuilder
 	SetOptions(options ...gocron.JobOption) JobBuilder
-	build(scheduler gocron.Scheduler, logger dlog.Logger, metrics prometheuses.Adapter) gocron.Job
+	build(scheduler gocron.Scheduler, logger dlog.Logger, metrics prometheus.Gauge) gocron.Job
 }
 
 type builder struct {
@@ -54,21 +54,20 @@ func NewJobBuilder(kind JobDefinitionWrap) JobBuilder {
 	}
 }
 
-func (b *builder) build(scheduler gocron.Scheduler, logger dlog.Logger, metrics prometheuses.Adapter) gocron.Job {
-	jobOption := gocron.AfterJobRunsWithError(func(jobID uuid.UUID, jobName string, err error) {
-		if err != nil {
-			logger.E().Writef("job(name: %s) completed with error: %v)", jobName, err)
-			if metrics.Enable {
-				metrics.Jobs.WithEntity(jobName).Gauge().Set(0.0)
-			}
-		} else {
-			logger.I().Writef("job(name: %s) completed without error", jobName)
-			if metrics.Enable {
-				metrics.Jobs.WithEntity(jobName).Gauge().Set(1.0)
-			}
+func (b *builder) build(scheduler gocron.Scheduler, logger dlog.Logger, metrics prometheus.Gauge) gocron.Job {
+	jobOptionErr := gocron.AfterJobRunsWithError(func(jobID uuid.UUID, jobName string, err error) {
+		logger.E().Writef("job(name: %s) completed with error: %v)", jobName, err)
+		if metrics != nil {
+			metrics.Set(0.0)
 		}
 	})
-	b.options = append(b.options, gocron.WithEventListeners(jobOption))
+	jobOption := gocron.AfterJobRuns(func(jobID uuid.UUID, jobName string) {
+		logger.I().Writef("job(name: %s) completed without error", jobName)
+		if metrics != nil {
+			metrics.Set(1.0)
+		}
+	})
+	b.options = append(b.options, gocron.WithEventListeners(jobOptionErr, jobOption))
 
 	job, err := scheduler.NewJob(b.definition(), b.task, b.options...)
 	if err != nil {

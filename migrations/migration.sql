@@ -9,3 +9,9 @@ CREATE TABLE IF NOT EXISTS public.client_registration_info(
     nonce TEXT NOT NULL,
     is_verified BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+CREATE TABLE IF NOT EXISTS public.user(
+    id uuid DEFAULT uuid_generate_v4(),
+    email TEXT NOT NULL,
+    hashed_password TEXT NOT NULL
+);

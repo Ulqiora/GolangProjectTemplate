@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"GolangTemplateProject/pkg/adapters/kafka"
 	"GolangTemplateProject/pkg/adapters/kafka/producer"
 	"github.com/IBM/sarama"
 )
@@ -15,12 +16,12 @@ type TopicProducer struct {
 	logger         sarama.StdLogger
 }
 
-func NewTopicProducer(addresses []string, config producer.Config, logger sarama.StdLogger) (*TopicProducer, error) {
+func NewTopicProducer(config producer.Config, logger sarama.StdLogger) (kafka.ProducerKafka, error) {
 	saramaConfig, err := producer.BuildProduceConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("error building kafka sarama config: %s", err.Error())
 	}
-	syncProducer, err := sarama.NewSyncProducer(addresses, saramaConfig)
+	syncProducer, err := sarama.NewSyncProducer(config.Brokers, saramaConfig)
 	if err != nil {
 		return nil, err
 	}

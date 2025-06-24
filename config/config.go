@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 
+	"GolangTemplateProject/pkg/adapters/kafka/producer"
 	"GolangTemplateProject/pkg/adapters/postgres"
 	"GolangTemplateProject/pkg/cripto/aesgcm"
 	"gopkg.in/yaml.v2"
 )
 
 const (
-	ConfigFile = "./config/config.yaml"
+	ConfigFile = "config.yaml"
 )
 
 var (
@@ -29,15 +30,17 @@ func (c *Connection) String() string {
 }
 
 type TLS struct {
-	Cert string `json:"cert" yaml:"cert" validate:"required"`
-	Key  string `json:"key" yaml:"key" validate:"required"`
+	Enabled bool   `json:"enabled" yaml:"enabled" validate:"required"`
+	Cert    string `json:"cert" yaml:"cert"`
+	Key     string `json:"key" yaml:"key"`
 }
 
 type Config struct {
-	ServerInfo ServerInfo `json:"server_info" yaml:"server_info" validate:"required"`
-	Database   Database   `json:"database" yaml:"database" validate:"required"`
-	Trace      Trace      `json:"trace" yaml:"trace" validate:"required"`
-	Auth       Auth       `json:"auth" yaml:"auth" validate:"required"`
+	ServerInfo ServerInfo      `json:"server_info" yaml:"server_info" validate:"required"`
+	Database   Database        `json:"database" yaml:"database" validate:"required"`
+	Trace      Trace           `json:"trace" yaml:"trace" validate:"required"`
+	Auth       Auth            `json:"auth" yaml:"auth" validate:"required"`
+	Kafka      producer.Config `json:"kafka" yaml:"kafka"`
 	//Email      email.Config `json:"email" yaml:"email" validate:"required"`
 }
 

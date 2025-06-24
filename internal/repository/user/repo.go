@@ -14,7 +14,13 @@ type UserRepository interface {
 }
 
 type UserRepositoryImpl struct {
-	base ports.BaseRepositoryImpl[domain.User]
+	base ports.BaseRepository[domain.User]
+}
+
+func NewUserRepository(base ports.BaseRepository[domain.User]) UserRepository {
+	return &UserRepositoryImpl{
+		base: base,
+	}
 }
 
 func (u UserRepositoryImpl) GetUser(ctx context.Context, id domain.ID) (*domain.User, error) {
@@ -32,7 +38,7 @@ func (u UserRepositoryImpl) CreateUser(ctx context.Context, user *domain.User) e
 }
 
 func (u UserRepositoryImpl) GetSomeoneUsers(ctx context.Context, limit int) ([]*domain.User, error) {
-	sql := `SELECT * FROM users LIMIT $1;`
+	sql := `SELECT * FROM public.user LIMIT $1;`
 
 	user, err := u.base.Select(ctx, sql, limit)
 	if err != nil {
