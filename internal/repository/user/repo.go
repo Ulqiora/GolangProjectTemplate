@@ -5,19 +5,20 @@ import (
 
 	"GolangTemplateProject/internal/domain"
 	"GolangTemplateProject/internal/ports"
+	"GolangTemplateProject/pkg/smart-span/tracing"
 )
 
 type UserRepository interface {
 	GetUser(ctx context.Context, id domain.ID) (*domain.User, error)
 	GetSomeoneUsers(ctx context.Context, limit int) ([]*domain.User, error)
-	CreateUser(ctx context.Context, user *domain.User) error
+	CreateUser(ctx context.Context, user *domain.User) (*domain.User, error)
 }
 
 type UserRepositoryImpl struct {
-	base ports.BaseRepository[domain.User]
+	base ports.BaseRepository[*domain.User]
 }
 
-func NewUserRepository(base ports.BaseRepository[domain.User]) UserRepository {
+func NewUserRepository(base ports.BaseRepository[*domain.User]) UserRepository {
 	return &UserRepositoryImpl{
 		base: base,
 	}
@@ -33,11 +34,13 @@ func (u UserRepositoryImpl) GetUser(ctx context.Context, id domain.ID) (*domain.
 	return user, nil
 }
 
-func (u UserRepositoryImpl) CreateUser(ctx context.Context, user *domain.User) error {
+func (u UserRepositoryImpl) CreateUser(ctx context.Context, user *domain.User) (*domain.User, error) {
 	return u.base.Create(ctx, user)
 }
 
 func (u UserRepositoryImpl) GetSomeoneUsers(ctx context.Context, limit int) ([]*domain.User, error) {
+	ctx, span := tracing.GetDefaultTracer().Start(ctx, "")
+	defer span.End()
 	sql := `SELECT * FROM public.user LIMIT $1;`
 
 	user, err := u.base.Select(ctx, sql, limit)

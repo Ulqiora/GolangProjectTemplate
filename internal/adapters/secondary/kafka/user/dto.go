@@ -3,9 +3,11 @@ package user
 import "encoding/json"
 
 type UserDTO struct {
-	Id             int    `json:"id"`
-	Email          string `json:"email"`
-	HashedPassword string `json:"password"`
+	Id        int    `json:"id"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+	Username  string `json:"username"`
+	Login     string `json:"login"`
 }
 
 func (u UserDTO) Marshal() ([]byte, error) {

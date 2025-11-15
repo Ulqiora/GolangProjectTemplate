@@ -37,18 +37,20 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
-#    volumes:
-#      - prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-#      - prometheus_data:/prometheus
+    volumes:
+      # Лучше использовать абсолютный путь к файлу конфигурации
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      # Раскомментируйте для сохранения данных между перезапусками
+      - prometheus_data:/prometheus
     ports:
       - "9090:9090"
-#    command:
-#      - "--config.file=/etc/prometheus/prometheus.yml"
-#      - "--storage.tsdb.path=/prometheus"
+    # Команды можно не указывать, так как они используются по умолчанию
     depends_on:
       - node_exporter
       - postgres-exporter
     restart: unless-stopped
+
+
 
   jaeger:
     image: jaegertracing/all-in-one:latest

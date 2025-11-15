@@ -33,17 +33,23 @@ func NewTopicProducer(config producer.Config, logger sarama.StdLogger) (kafka.Pr
 }
 
 func (t *TopicProducer) SendMessages(message ...*sarama.ProducerMessage) error {
+	for i := range message {
+		message[i].Topic = t.topic
+	}
 	return t.producerSamara.SendMessages(message)
 }
 
 func (t *TopicProducer) SendMessage(message *sarama.ProducerMessage) error {
+	message.Topic = t.topic
 	partition, offset, err := t.producerSamara.SendMessage(message)
 	if err != nil {
 		return err
 	}
-
-	t.logger.Printf("Send message to partition %d at offset %d\n", partition, offset)
-
+	if t.logger != nil {
+		t.logger.Printf("Send message to partition %d at offset %d\n", partition, offset)
+	} else {
+		fmt.Printf("Send message to partition %d at offset %d\n", partition, offset)
+	}
 	return nil
 }
 

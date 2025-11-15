@@ -14,6 +14,7 @@ type Connection interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Begin(ctx context.Context) (pgx.Tx, error)
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
+	Close()
 }
 
 type SqlExecutor interface {
@@ -48,4 +49,8 @@ func (c *ConnectionImpl) Begin(ctx context.Context) (pgx.Tx, error) {
 
 func (c *ConnectionImpl) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
 	return c.connection.BeginTx(ctx, txOptions)
+}
+
+func (c *ConnectionImpl) Close() {
+	c.connection.Release()
 }

@@ -15,7 +15,6 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"
       - "29092:29092"
     networks:
       - default
@@ -26,8 +25,35 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "legals:1:1,offices:1:1,payments:1:1,documents:1:1,rids_statuses:1:1,print_forms:1:1"
-      KAFKA_GROUP_ID: "companydoc-group-id"
+      KAFKA_CREATE_TOPICS: "users:1:1"
+      KAFKA_GROUP_ID: "PROJECT"
+
+#  schema-registry:
+#    image: confluentinc/cp-schema-registry:7.4.0
+#    container_name: schema-registry
+#    depends_on:
+#      - kafka
+#    environment:
+#      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+#      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
+#      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+#      SCHEMA_REGISTRY_DEBUG: 'true'
+#    ports:
+#      - "8081:30000"
+#
+#  clickhouse:
+#    image: clickhouse/clickhouse-server:23.8
+#    container_name: clickhouse
+#    ports:
+#      - "8123:8123"  # HTTP interface
+#      - "9000:9000"  # Native protocol
+#    volumes:
+#      - ./clickhouse/config.xml:/etc/clickhouse-server/config.xml:ro
+#      - ./clickhouse/users.xml:/etc/clickhouse-server/users.xml:ro
+#    environment:
+#      CLICKHOUSE_DB: default
+#      CLICKHOUSE_USER: admin
+#      CLICKHOUSE_PASSWORD: password
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest

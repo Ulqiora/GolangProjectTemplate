@@ -5,30 +5,40 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"GolangTemplateProject/config"
+	"GolangTemplateProject/internal/adapters/primary/k8s"
+	"GolangTemplateProject/internal/adapters/primary/prometheus"
+	auth_handlers "GolangTemplateProject/internal/adapters/primary/user"
+	"GolangTemplateProject/internal/config"
 	"GolangTemplateProject/internal/domain"
 	"GolangTemplateProject/internal/ports"
-	"GolangTemplateProject/internal/repository/user"
-	"GolangTemplateProject/internal/usecase/outbox"
+	user_repo "GolangTemplateProject/internal/repository/user"
+	user_secret_repo "GolangTemplateProject/internal/repository/user-secrets"
+	auth_usecase "GolangTemplateProject/internal/usecase/authorization"
 	"GolangTemplateProject/pkg/adapters/kafka"
-	sync_producer "GolangTemplateProject/pkg/adapters/kafka/producer/sync-producer"
 	"GolangTemplateProject/pkg/adapters/postgres"
 	"GolangTemplateProject/pkg/closer"
 	"GolangTemplateProject/pkg/jobs"
-	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
-	"github.com/go-co-op/gocron/v2"
+	"GolangTemplateProject/pkg/logger"
+	"GolangTemplateProject/pkg/smart-span/tracing"
+	transaction_manager "GolangTemplateProject/pkg/transaction-manager"
+	"github.com/gin-gonic/gin"
 	"gitlab.wildberries.ru/wbbank/go-dpkg/dlog/v1"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Application struct {
 	postgres       postgres.IPostgres
 	consumer       kafka.Consumer
 	gracefulCloser *closer.GracefulCloser
+	scheduler      jobs.Scheduler
+	tracerProvider trace.TracerProvider
+	logger         logger.Logger
 }
 
 func NewApplication(ctx context.Context) (*Application, error) {
@@ -52,52 +62,86 @@ func (a *Application) SetupDependencies(ctx context.Context) error {
 		panic(err)
 	}
 	a.gracefulCloser.AddCloser(pool.Close)
-	telemetrySDK, err := open_telemetry.SetupOpenTelemetrySDK(ctx)
+
+	a.scheduler, err = jobs.NewJobScheduler(dlog.New(), nil)
 	if err != nil {
 		panic(err)
 	}
-	a.gracefulCloser.AddCloser(telemetrySDK)
+	a.gracefulCloser.AddCloser(a.scheduler.Stop)
+
+	tracerProvider, f, err := tracing.InitTracing(ctx, &config.Get().Trace.Jaeger)
+	a.gracefulCloser.AddCloser(func() error {
+		return f(ctx)
+	})
+	a.logger, err = logger.NewLogger()
+	logger.SetDefaultLogger(a.logger)
+	if err != nil {
+		panic(err)
+	}
+	a.tracerProvider = tracerProvider
 	return nil
 }
 
 func (a *Application) Start() {
-	ctx, cancel := context.WithCancel(context.Background())
+	//ctx, cancel := context.WithCancel(context.Background())
 
-	producer, err := sync_producer.NewTopicProducer(config.Get().Kafka, nil)
-	fmt.Println(config.Get().Kafka)
-	if err != nil {
-		panic(err)
-	}
+	//producer, err := sync_producer.NewTopicProducer(config.Get().Kafka, nil)
+	//fmt.Println(config.Get().Kafka)
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	baseUserRepository := ports.NewBaseRepository(a.postgres, "user", func() *domain.User {
+	trxManager := transaction_manager.New(a.postgres, a.logger)
+
+	baseUserRepository := ports.NewBaseRepository[*domain.User](a.postgres, "user_registration", func() *domain.User {
 		return &domain.User{}
 	})
-	userRepository := user.NewUserRepository(baseUserRepository)
-	usecaseUser := outbox.NewUserUsecase(userRepository, producer)
-	//impl, _ := consumer.NewTopicConsumerGroup[domain.User](nil, nil, usecaseUser.Translate)
-	//user.NewUserListener(impl, usecaseUser)
-	scheduler, err := jobs.NewJobScheduler(dlog.New(), nil)
-	if err != nil {
-		panic(err)
+	baseUserSecretRepository := ports.NewBaseRepository[*domain.UserSecrets](a.postgres, "user_secret", func() *domain.UserSecrets {
+		return &domain.UserSecrets{}
+	})
+	userRepository := user_repo.NewUserRepository(baseUserRepository)
+	userSecretRepository := user_secret_repo.NewUserSecretRepository(baseUserSecretRepository)
+	usecaseUser := auth_usecase.NewUserUsecase(userRepository, userSecretRepository, trxManager)
+
+	//jobCtx, jobCancel := context.WithCancel(ctx)
+	//a.scheduler.AddJob(
+	//	jobs.NewJobBuilder(
+	//		jobs.DurationJob(5*time.Second)).
+	//		SetTask(usecaseUser.Translate, jobCtx).
+	//		SetOptions(gocron.WithName("UserTranslate")),
+	//)
+	//a.gracefulCloser.AddCloser(func() error {
+	//	jobCancel()
+	//	return nil
+	//})
+
+	engine := gin.Default()
+
+	k8s.NewModulePrometheus().Register(engine)
+	prometheus.NewModulePromehteus().Register(engine.Group("/metrics"))
+	auth_handlers.NewUserHandlers(usecaseUser).Register(engine.Group("/users"))
+
+	srv := &http.Server{
+		Addr:    config.Get().ServerInfo.HttpConnection.String(),
+		Handler: engine,
 	}
 
-	jobCtx, jobCancel := context.WithCancel(ctx)
+	go func() {
+		fmt.Printf("Service started on %s", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("listen: %s\n", err)
+		}
+	}()
 
-	scheduler.AddJob(
-		jobs.NewJobBuilder(
-			jobs.DurationJob(5*time.Second)).
-			SetTask(usecaseUser.Translate, jobCtx).
-			SetOptions(gocron.WithName("UserTranslate")),
-	)
 	a.gracefulCloser.AddCloser(func() error {
-		jobCancel()
-		return nil
+		ctxWithTimeout, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+		return srv.Shutdown(ctxWithTimeout)
 	})
-	a.gracefulCloser.AddCloser(scheduler.Stop)
-	scheduler.Start()
+
+	a.scheduler.Start()
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
-	log.Println("application started, press Ctrl+C to stop")
 	<-interrupt
 	log.Println("shutting down...")
 	if err := a.gracefulCloser.Close(); err != nil {
@@ -107,7 +151,5 @@ func (a *Application) Start() {
 			log.Println("shutdown error:", err)
 		}
 	}
-	cancel()
-
-	log.Println("application stopped")
+	//cancel()
 }

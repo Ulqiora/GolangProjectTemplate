@@ -25,8 +25,8 @@ dependup: build docker-image
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.database.yaml up --build -d
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.kafka.yaml up --build -d
 	NETWORK_NAME=$(NETWORK_NAME) docker-compose -f $(DC_FOLDER)/docker-compose.tracing.yaml up --build -d
-	sleep 5
-	NETWORK_NAME=$(NETWORK_NAME) DOCKER_IMAGE=${BUILD_EXEC} docker-compose -f $(DC_FOLDER)/docker-compose.app.yaml up --build -d
+	#sleep 5
+	#NETWORK_NAME=$(NETWORK_NAME) DOCKER_IMAGE=${BUILD_EXEC} docker-compose -f $(DC_FOLDER)/docker-compose.app.yaml up --build -d
 # --------------------GENERATE-GOLANG-GEN-GO
 generate-api:
 	mkdir -p ${PROTO_TARGET}
@@ -80,3 +80,9 @@ build:
 .PHONY:debug
 debug: build
 	dlv debug ./cmd/${BUILD_EXEC} --headless --listen=:2345 --api-version=2
+
+# -------------------- External dependencies
+.PHONY: goose-create
+goose-create:
+	goose -dir=migrations create ${migration-name} sql
+

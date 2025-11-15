@@ -5,88 +5,52 @@ import (
 	"fmt"
 
 	"GolangTemplateProject/pkg/adapters/postgres"
+	"GolangTemplateProject/pkg/logger"
+	transaction_manager "GolangTemplateProject/pkg/transaction-manager"
+	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 )
 
-const (
-	TxField = "transaction"
-)
-
-type ScanFunc func(dest ...any) error
-
-type BaseModel interface {
-	Params() map[string]interface{}
-	Fields() []string
-	PrimaryKey() any
-	Scan(fields []string, scan ScanFunc) error
-}
-
-func findExecutor(ctx context.Context, pool postgres.IPostgres) (postgres.SqlExecutor, func(), error) {
-	var connection postgres.SqlExecutor
-	var fn func()
-	if tx, ok := ctx.Value(TxField).(pgx.Tx); ok {
-		connection = tx
-	} else {
-		impl, err := pool.Connection(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("[BaseRepositoryImpl]: %w", err)
-		}
-		fn = impl.Release
-		connection = impl
-	}
-	return connection, fn, nil
-}
-
-type BaseRepository[M BaseModel] interface {
-	SelectOne(ctx context.Context, sql string, args ...any) (*M, error)
-	Select(ctx context.Context, sql string, args ...any) ([]*M, error)
-	Create(ctx context.Context, m *M) error
-}
-
 type BaseRepositoryImpl[M BaseModel] struct {
 	pool         postgres.IPostgres
-	generateFunc func() *M
+	ctxManager   transaction_manager.CtxManager
+	generateFunc func() M
 	tableName    string
 }
 
-func NewBaseRepository[M BaseModel](pool postgres.IPostgres, tablename string, generateFunc func() *M) BaseRepository[M] {
+func NewBaseRepository[M BaseModel](pool postgres.IPostgres, tablename string, generateFunc func() M) BaseRepository[M] {
 	return &BaseRepositoryImpl[M]{
 		pool:         pool,
+		ctxManager:   transaction_manager.NewCtxManager(pool, logger.DefaultLogger()),
 		generateFunc: generateFunc,
 		tableName:    tablename,
 	}
 }
 
-func (repo *BaseRepositoryImpl[M]) SelectOne(ctx context.Context, sql string, args ...any) (*M, error) {
-	connection, fn, err := findExecutor(ctx, repo.pool)
-	defer func() {
-		if fn != nil {
-			fn()
-		}
-	}()
+func (repo *BaseRepositoryImpl[M]) SelectOne(ctx context.Context, sql string, args ...any) (M, error) {
+	var result M
+	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
+	defer fnClose()
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	row := connection.QueryRow(ctx, sql, args...)
 
-	object := repo.generateFunc()
-	err = row.Scan(object)
+	result = repo.generateFunc()
+	err = row.Scan(result)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
-	return object, nil
+	return result, nil
 }
 
-func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args ...any) ([]*M, error) {
-	connection, fn, err := findExecutor(ctx, repo.pool)
-	defer func() {
-		if fn != nil {
-			fn()
-		}
-	}()
+func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args ...any) ([]M, error) {
+	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
+	defer fnClose()
 	if err != nil {
 		return nil, err
 	}
+
 	rows, err := connection.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
@@ -94,11 +58,11 @@ func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args 
 	defer rows.Close()
 	fields := repo.fields(rows)
 
-	var objects []*M
+	var objects []M
 
 	for rows.Next() {
 		object := repo.generateFunc()
-		err := (*object).Scan(fields, rows.Scan)
+		err := object.Scan(fields, rows.Scan)
 		if err != nil {
 			return nil, err
 		}
@@ -108,34 +72,33 @@ func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args 
 	return objects, nil
 }
 
-func (repo *BaseRepositoryImpl[M]) Create(ctx context.Context, m *M) error {
-	//connection, err := findExecutor(ctx, repo.pool)
-	//if err != nil {
-	//	return err
-	//}
-	//values := m.Params()
-	//squirell
-	//
-	//sql, args, err2 := squirrel.
-	//	StatementBuilder.
-	//	PlaceholderFormat(squirrel.Dollar).
-	//	Insert(Self.table).
-	//	SetMap(values).
-	//	ToSql()
-	//if err2 != nil {
-	//	return err2
-	//}
-	//
-	//conn, err3 := Self.db.Conn(ctx)
-	//if err3 != nil {
-	//	return err3
-	//}
-	//
-	//if _, err = conn.Exec(ctx, sql, args...); err != nil {
-	//	return err
-	//}
+func (repo *BaseRepositoryImpl[M]) Create(ctx context.Context, m M) (M, error) {
+	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
+	defer fnClose()
+	if err != nil {
+		fmt.Println("err fetch connection ")
+		return repo.generateFunc(), err
+	}
+	values := m.Params()
 
-	return nil
+	sql, args, err2 := squirrel.
+		StatementBuilder.
+		PlaceholderFormat(squirrel.Dollar).
+		Insert(repo.tableName).
+		SetMap(values).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err2 != nil {
+		fmt.Println("err build sql build")
+		return repo.generateFunc(), err2
+	}
+
+	if _, err = connection.Exec(ctx, sql, args...); err != nil {
+		fmt.Println("err exec object: ", err.Error())
+		return repo.generateFunc(), err
+	}
+	fmt.Println("complete create object")
+	return m, nil
 }
 
 func (repo *BaseRepositoryImpl[M]) fields(rows pgx.Rows) []string {

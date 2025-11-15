@@ -2,119 +2,150 @@ package authorization
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"GolangTemplateProject/config"
+	"GolangTemplateProject/internal/config"
 	models "GolangTemplateProject/internal/domain"
-	"GolangTemplateProject/internal/user"
-	"GolangTemplateProject/internal/user/repository/dto"
+	"GolangTemplateProject/internal/repository/user"
+	user_secrets "GolangTemplateProject/internal/repository/user-secrets"
 	"GolangTemplateProject/pkg/cripto/aesgcm"
 	"GolangTemplateProject/pkg/cripto/bcrypt"
-	"GolangTemplateProject/pkg/email"
-	open_telemetry "GolangTemplateProject/pkg/open-telemetry"
+	"GolangTemplateProject/pkg/jwt"
+	"GolangTemplateProject/pkg/logger"
+	"GolangTemplateProject/pkg/logger/attribute"
 	"GolangTemplateProject/pkg/otp"
-	"github.com/dgrijalva/jwt-go"
+	open_telemetry "GolangTemplateProject/pkg/smart-span/tracing"
+	transaction_manager "GolangTemplateProject/pkg/transaction-manager"
+	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 )
 
 type UserUsecase struct {
-	psqlRepo     user.PsqlRepository
-	emailManager email.Manager
-	crypter      aesgcm.Crypter
-	cfg          *config.Config
+	psqlRepo       user.UserRepository
+	psqlUserSecret user_secrets.UserSecretRepository
+	crypter        aesgcm.Crypter
+	bcrypt         bcrypt.Hasher
+	aesgcm         aesgcm.Crypter
+	jwt            jwt.JWTManager
+	txManager      transaction_manager.TransactionManager
 }
 
-func NewUserUsecase(psqlRepo user.PsqlRepository) *UserUsecase {
+func NewUserUsecase(
+	psqlRepo user.UserRepository, psqlUserSecret user_secrets.UserSecretRepository,
+	txManager transaction_manager.TransactionManager) *UserUsecase {
 	return &UserUsecase{
-		psqlRepo:     psqlRepo,
-		emailManager: email.SMTPEmailManager{},
-		crypter:      aesgcm.NewCrypt(config.Get().Auth.Aesgcm),
-		cfg:          config.Get(),
+		psqlRepo:       psqlRepo,
+		psqlUserSecret: psqlUserSecret,
+		crypter:        aesgcm.NewCrypt(config.Get().Auth.Aesgcm),
+		bcrypt:         bcrypt.New(config.Get().Auth.Bcrypt),
+		aesgcm:         aesgcm.NewCrypt(config.Get().Auth.Aesgcm),
+		txManager:      txManager,
 	}
 }
 
 func (u *UserUsecase) Registration(ctx context.Context, user models.RegistrationUserInfo) (models.RegistrationUserResponse, error) {
-	ctx, span := open_telemetry.Tracer.Start(ctx, "UserUsecase.Registration")
-	defer span.End()
+	const (
+		logname = "UserUsecase.Registration"
+	)
+	var (
+		err error
+	)
 
-	hashedPassword, err := bcrypt.GenerateHashedPassword(user.Password)
+	ctxSpan, span := open_telemetry.GetDefaultTracer().Start(ctx, logname)
+	//defer span.End()
+	_ = logger.DefaultLogger().With(attribute.String("name", logname))
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("%s: %w", logname, err)
+		}
+	}()
+	hashedPassword, err := u.bcrypt.Hash(user.Password)
 	if err != nil {
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
-	span.AddEvent("generate hashed password complete")
-
 	secretKey, url, err := otp.GenerateOTPInfo(
 		totp.GenerateOpts{
 			Issuer:      user.Email,
 			AccountName: user.Login,
 		},
 	)
-	span.AddEvent("generate OTP objects completed")
 
-	secretKeyEncrypted, nonce, err := u.crypter.Encrypt([]byte(u.cfg.Auth.Aesgcm.SecretKey), []byte(secretKey))
+	secretKeyEncrypted, nonce, err := u.crypter.Encrypt([]byte(secretKey))
 	if err != nil {
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
-	span.AddEvent("secret key encrypted")
 
-	uuid, err := u.psqlRepo.Registration(ctx, dto.RegistrationUserInfoDTO{
-		Login:         user.Login,
-		Email:         user.Email,
-		Password:      hashedPassword,
-		OtpSecret:     secretKeyEncrypted,
-		UrlOtpCode:    url,
-		OtpCryptNonce: nonce,
+	accessToken, err := u.jwt.Generate(uuid.UUID(user.Id).String(), user.Email)
+	if err != nil {
+		span.RecordError(err)
+		return models.RegistrationUserResponse{}, err
+	}
+	refreshToken, err := u.jwt.GenerateRefreshToken()
+	if err != nil {
+		span.RecordError(err)
+		return models.RegistrationUserResponse{}, err
+	}
+
+	var (
+		userData    *models.User
+		userSecrets *models.UserSecrets
+	)
+	err = u.txManager.Do(ctxSpan, func(ctxTx context.Context) error {
+		timeNow := time.Now().In(time.UTC)
+		userData, err = u.psqlRepo.CreateUser(ctxTx, &models.User{
+			Id:        user.Id,
+			Email:     user.Email,
+			LastName:  user.Lastname,
+			FirstName: user.Firstname,
+			Login:     user.Login,
+			CreatedAt: timeNow,
+			UpdatedAt: timeNow,
+		})
+		if err != nil {
+			return err
+		}
+		userSecrets, err = u.psqlUserSecret.Create(ctxTx, &models.UserSecrets{
+			UserId:         uuid.UUID(user.Id),
+			HashedPassword: hashedPassword,
+			OtpSecret:      secretKeyEncrypted,
+			OtpNonce:       nonce,
+			OtpUrl:         url,
+			UpdatedAt:      timeNow,
+		})
+
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
-		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
-	span.AddEvent("secret key encrypted")
-
-	if err = u.emailManager.SendRegistrationNotification(&email.Message{
-		To:      user.Email,
-		Subject: "Registration Notification",
-		Body:    "",
-	}); err != nil {
-		span.RecordError(err)
-		return models.RegistrationUserResponse{}, err
-	}
-	span.AddEvent("notification of registration sended")
 	return models.RegistrationUserResponse{
-		UserUUID: uuid,
-		OtpUrl:   url,
-	}, err
+		UserId:       userData.Id,
+		OtpUrl:       userSecrets.OtpUrl,
+		CreatedAt:    userData.CreatedAt,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
-func (u *UserUsecase) Login(ctx context.Context, email string, password string) (string, error) {
-	ctx, span := open_telemetry.Tracer.Start(ctx, "UserUsecase.Login")
-	defer span.End()
+func (u *UserUsecase) Login(ctx context.Context) (string, error) {
+	var (
+		err     error
+		logname = "UserUsecase.Registration"
+	)
 
-	userInfo, err := u.psqlRepo.GetUserInfo(ctx, email)
-	if err != nil {
-		span.RecordError(err)
-		return "", err
-	}
-
-	if err = bcrypt.ValidatePassword(password, userInfo.HashedPassword); err != nil {
-		span.RecordError(err)
-		return "", err
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email":   email,
-		"user_id": userInfo.Id,
-		"iat":     time.Now().Unix(),
-		"exp":     time.Now().Add(time.Hour * 1).Unix(),
-	})
-
-	tokenWithSecret, err := token.SignedString(config.Get().Auth.JWT.SecretKey)
-	if err != nil {
-		span.RecordError(err)
-		return "", err
-	}
-
-	return tokenWithSecret, nil
+	ctxSpan, span := open_telemetry.GetDefaultTracer().Start(ctx, "")
+	//defer span.End()
+	_ = logger.DefaultLogger().With(attribute.String("name", logname))
+	defer func() {
+		if err != nil {
+			err = fmt.Errorf("%s: %w", logname, err)
+		}
+	}()
+	u.bcrypt.Validate()
 }

@@ -8,11 +8,6 @@ import (
 	"io"
 )
 
-type Crypter interface {
-	Encrypt(key, plaintext []byte) (ciphertext, nonce string, err error)
-	Decrypt(key, nonce, ciphertext []byte) (plaintext []byte, err error)
-}
-
 type CryptAesgcm struct {
 	secretKey string
 }
@@ -23,9 +18,9 @@ func NewCrypt(config Config) *CryptAesgcm {
 	}
 }
 
-func (c *CryptAesgcm) Encrypt(key, plaintext []byte) (ciphertext, nonce string, err error) {
+func (c *CryptAesgcm) Encrypt(plaintext []byte) (ciphertext, nonce string, err error) {
 	// Создание нового блока AES
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher([]byte(c.secretKey))
 	if err != nil {
 		return "", "", err
 	}
@@ -47,9 +42,9 @@ func (c *CryptAesgcm) Encrypt(key, plaintext []byte) (ciphertext, nonce string, 
 	return hex.EncodeToString([]byte(ciphertext)), hex.EncodeToString([]byte(nonce)), nil
 }
 
-func (c *CryptAesgcm) Decrypt(key, nonce, ciphertext []byte) (plaintext []byte, err error) {
+func (c *CryptAesgcm) Decrypt(nonce, ciphertext []byte) (plaintext []byte, err error) {
 	// Создание нового блока AES
-	block, err := aes.NewCipher(key)
+	block, err := aes.NewCipher([]byte(c.secretKey))
 	if err != nil {
 		return nil, err
 	}

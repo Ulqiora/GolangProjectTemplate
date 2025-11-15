@@ -12,7 +12,7 @@ type Postgres struct {
 }
 
 type IPostgres interface {
-	Connection(ctx context.Context) (*ConnectionImpl, error)
+	Connection(ctx context.Context) (Connection, error)
 	Ping(ctx context.Context, pool *Postgres) error
 	Close() error
 }
@@ -40,7 +40,7 @@ func (p *Postgres) Ping(ctx context.Context, pool *Postgres) error {
 	return pool.pgx.Ping(ctx)
 }
 
-func (p *Postgres) Connection(ctx context.Context) (*ConnectionImpl, error) {
+func (p *Postgres) Connection(ctx context.Context) (Connection, error) {
 	conn, err := p.pgx.Acquire(ctx)
 	if err != nil {
 		return nil, err

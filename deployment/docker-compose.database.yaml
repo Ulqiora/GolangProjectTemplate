@@ -13,6 +13,22 @@ services:
     ports:
       - "5435:5432"
 
+  migrate:
+    build:
+      context: ./..
+      dockerfile: deployment/goose/Dockerfile
+    environment:
+      DB_HOST: postgresql-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: postgres
+      DB_CONN: "postgres://postgres:postgres@postgresql-db:5432/postgres?sslmode=disable"
+    volumes:
+      - ./migrations:/migrations
+    depends_on:
+      - postgresql-db
+
 networks:
   default:
     external: true
