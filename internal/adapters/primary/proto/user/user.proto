@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package auth;
+
+import "google/protobuf/timestamp.proto";
+import "google/api/annotations.proto";
+import "validate/validate.proto";
+
+option go_package = "github.com/Ulqiora/GolangTemplateProject/internal/adapters/primary/generated/user;user_v1";
+
+
+service AuthService {
+  rpc Register(RegistrationRequest) returns (RegistrationResponse){
+    option (google.api.http) = {
+      post: "/api/v1/user/registration"
+      body: "*"
+    };
+  };
+}
+
+message RegistrationRequest {
+  string id = 1[(validate.rules).string.uuid = true];  // UUID as string
+  string login = 2;
+  string password = 3;
+  string firstname = 4;
+  string lastname = 5;
+  string email = 6 [(validate.rules).string.email = true];
+}
+
+message RegistrationResponse {
+  string id = 1[(validate.rules).string.uuid = true];  // UUID as string
+  string login = 2;
+  string otp_url = 3;
+  google.protobuf.Timestamp created_at = 4;
+  string access_token = 5;
+  string refresh_token = 6;
+}

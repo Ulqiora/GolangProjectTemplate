@@ -28,16 +28,13 @@ dependup: build docker-image
 	#sleep 5
 	#NETWORK_NAME=$(NETWORK_NAME) DOCKER_IMAGE=${BUILD_EXEC} docker-compose -f $(DC_FOLDER)/docker-compose.app.yaml up --build -d
 # --------------------GENERATE-GOLANG-GEN-GO
-generate-api:
-	mkdir -p ${PROTO_TARGET}
-	protoc --proto_path $(GRPC_SOURCE) \
-    	--go_out=$(PROTO_TARGET) --go_opt=paths=source_relative \
-    	--plugin=protoc-gen-go=$(GRPC_UTILS_FOLDER)/protoc-gen-go \
-    	--go-grpc_out=$(PROTO_TARGET) --go-grpc_opt=paths=source_relative \
-		--plugin=protoc-gen-go-grpc=$(GRPC_UTILS_FOLDER)/protoc-gen-go-grpc \
-    	--grpc-gateway_out=$(PROTO_TARGET) --grpc-gateway_opt=paths=source_relative \
-    	--plugin=protoc-gen-grpc-gateway=$(GRPC_UTILS_FOLDER)/protoc-gen-grpc-gateway \
-    	$(GRCP_PROTO_FOLDERS)
+.PHONY: .load-proto-bins
+.load-proto-bins:
+	./scripts/getprotobins.sh
+
+.PHONY: generate-api
+generate-api: .load-proto-bins .deps
+	./scripts/genproto.sh
 
 
 # --------------------GENERATE-TLS-CERTIFICATE
@@ -86,3 +83,29 @@ debug: build
 goose-create:
 	goose -dir=migrations create ${migration-name} sql
 
+.PHONY: .deps
+.deps: .deps-googleapis .deps-protobuf .deps-validate
+
+.PHONY: .deps-googleapis
+.deps-googleapis:
+	@echo "Downloading Google APIs..."
+	@mkdir -p third_party/googleapis
+	@git clone --depth 1 https://github.com/googleapis/googleapis.git third_party/googleapis-tmp || true
+	@cp -r third_party/googleapis-tmp/google third_party/ || true
+	@rm -rf third_party/googleapis-tmp
+
+.PHONY: .deps-protobuf
+.deps-protobuf:
+	@echo "Downloading Protobuf well-known types..."
+	@mkdir -p third_party/protobuf
+	@git clone --depth 1 https://github.com/protocolbuffers/protobuf.git third_party/protobuf-tmp || true
+	@cp -r third_party/protobuf-tmp/src/google/protobuf third_party/ || true
+	@rm -rf third_party/protobuf-tmp
+
+.PHONY: .deps-validate
+.deps-validate:
+	@echo "Downloading Validate annotations..."
+	@mkdir -p third_party/validate
+	@git clone --depth 1 https://github.com/bufbuild/protoc-gen-validate.git third_party/validate-tmp || true
+	@cp third_party/validate-tmp/validate/validate.proto third_party/validate/ || true
+	@rm -rf third_party/validate-tmp

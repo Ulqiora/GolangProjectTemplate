@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
-
+	
 	"GolangTemplateProject/internal/config"
 	models "GolangTemplateProject/internal/domain"
 	"GolangTemplateProject/internal/repository/user"
@@ -51,7 +51,7 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 	var (
 		err error
 	)
-
+	
 	ctxSpan, span := open_telemetry.GetDefaultTracer().Start(ctx, logname)
 	//defer span.End()
 	_ = logger.DefaultLogger().With(attribute.String("name", logname))
@@ -71,24 +71,17 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 			AccountName: user.Login,
 		},
 	)
-
+	
 	secretKeyEncrypted, nonce, err := u.crypter.Encrypt([]byte(secretKey))
 	if err != nil {
 		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
-
-	accessToken, err := u.jwt.Generate(uuid.UUID(user.Id).String(), user.Email)
+	accessToken, refreshToken, err := u.jwtGenerate(ctx, user.Email, uuid.UUID(user.Id))
 	if err != nil {
-		span.RecordError(err)
 		return models.RegistrationUserResponse{}, err
 	}
-	refreshToken, err := u.jwt.GenerateRefreshToken()
-	if err != nil {
-		span.RecordError(err)
-		return models.RegistrationUserResponse{}, err
-	}
-
+	
 	var (
 		userData    *models.User
 		userSecrets *models.UserSecrets
@@ -115,7 +108,7 @@ func (u *UserUsecase) Registration(ctx context.Context, user models.Registration
 			OtpUrl:         url,
 			UpdatedAt:      timeNow,
 		})
-
+		
 		if err != nil {
 			return err
 		}
@@ -138,7 +131,7 @@ func (u *UserUsecase) Login(ctx context.Context) (string, error) {
 		err     error
 		logname = "UserUsecase.Registration"
 	)
-
+	
 	ctxSpan, span := open_telemetry.GetDefaultTracer().Start(ctx, "")
 	//defer span.End()
 	_ = logger.DefaultLogger().With(attribute.String("name", logname))
@@ -148,4 +141,16 @@ func (u *UserUsecase) Login(ctx context.Context) (string, error) {
 		}
 	}()
 	u.bcrypt.Validate()
+}
+
+func (u *UserUsecase) jwtGenerate(_ context.Context, email string, user uuid.UUID) (string, string, error) {
+	accessToken, err := u.jwt.Generate(user.String(), email)
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err := u.jwt.GenerateRefreshToken()
+	if err != nil {
+		return "", "", err
+	}
+	return accessToken, refreshToken, nil
 }
