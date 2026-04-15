@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"GolangTemplateProject/pkg/adapters/kafka/producer"
+	consumer "GolangTemplateProject/pkg/adapters/kafka/consumer/dql"
 	"GolangTemplateProject/pkg/adapters/postgres"
 	"GolangTemplateProject/pkg/cripto/aesgcm"
 	"GolangTemplateProject/pkg/cripto/bcrypt"
+	"GolangTemplateProject/pkg/logger"
 	"GolangTemplateProject/pkg/smart-span/tracing"
 	"gopkg.in/yaml.v2"
 )
@@ -38,11 +39,14 @@ type TLS struct {
 }
 
 type Config struct {
-	ServerInfo ServerInfo      `json:"server_info" yaml:"server_info" validate:"required"`
-	Database   Database        `json:"database" yaml:"database" validate:"required"`
-	Trace      Trace           `json:"trace" yaml:"trace" validate:"required"`
-	Auth       Auth            `json:"auth" yaml:"auth" validate:"required"`
-	Kafka      producer.Config `json:"kafka" yaml:"kafka"`
+	Env         logger.Env `json:"env" yaml:"env" validate:"required"`
+	ServiceName string     `json:"service_name" yaml:"service_name" validate:"required"`
+	ServerInfo  ServerInfo `json:"server_info" yaml:"server_info" validate:"required"`
+	Database    Database   `json:"database" yaml:"database" validate:"required"`
+	Trace       Trace      `json:"trace" yaml:"trace" validate:"required"`
+	Auth        Auth       `json:"auth" yaml:"auth" validate:"required"`
+	//Kafka         producer.Config `json:"kafka" yaml:"kafka"`
+	KafkaConsumer consumer.Config `json:"kafka" yaml:"kafka"`
 	//Email      email.Config `json:"email" yaml:"email" validate:"required"`
 }
 
@@ -84,7 +88,7 @@ type Auth struct {
 
 type JWT struct {
 	SecretKey string `json:"secret_key" yaml:"secret_key" validate:"required"`
-	TTL       string `json:"ttl" yaml:"ttl" validate:"required"`
+	TTL       int    `json:"ttl" yaml:"ttl" validate:"required"`
 }
 
 func LoadConfig() error {

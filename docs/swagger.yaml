@@ -1,0 +1,50 @@
+basePath: /
+host: localhost:10001
+info:
+  contact:
+    email: damdinov@jcraster.ru
+    name: Andrey
+  description: This is a sample swagger for Fiber project
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: ProjectAPI
+  version: "1.0"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Handles user login by processing the provided credentials.
+      parameters:
+      - description: Username
+        in: body
+        name: username
+        required: true
+        schema:
+          type: string
+      - description: Password
+        in: body
+        name: password
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+      summary: Login a user
+      tags:
+      - Auth
+swagger: "2.0"

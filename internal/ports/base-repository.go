@@ -2,28 +2,27 @@ package ports
 
 import (
 	"context"
-	"fmt"
 
 	"GolangTemplateProject/pkg/adapters/postgres"
 	"GolangTemplateProject/pkg/logger"
 	transaction_manager "GolangTemplateProject/pkg/transaction-manager"
-	"github.com/Masterminds/squirrel"
+	"github.com/doug-martin/goqu/v9"
 	"github.com/jackc/pgx/v5"
 )
 
 type BaseRepositoryImpl[M BaseModel] struct {
-	pool         postgres.IPostgres
-	ctxManager   transaction_manager.CtxManager
-	generateFunc func() M
-	tableName    string
+	pool       postgres.IPostgres
+	ctxManager transaction_manager.CtxManager
+	dialect    goqu.DialectWrapper
+	tableName  string
 }
 
-func NewBaseRepository[M BaseModel](pool postgres.IPostgres, tablename string, generateFunc func() M) BaseRepository[M] {
+func NewBaseRepository[M BaseModel](pool postgres.IPostgres, tablename string) BaseRepository[M] {
 	return &BaseRepositoryImpl[M]{
-		pool:         pool,
-		ctxManager:   transaction_manager.NewCtxManager(pool, logger.DefaultLogger()),
-		generateFunc: generateFunc,
-		tableName:    tablename,
+		pool:       pool,
+		ctxManager: transaction_manager.NewCtxManager(pool, logger.DefaultLogger()),
+		dialect:    goqu.Dialect("postgres"),
+		tableName:  tablename,
 	}
 }
 
@@ -34,10 +33,13 @@ func (repo *BaseRepositoryImpl[M]) SelectOne(ctx context.Context, sql string, ar
 	if err != nil {
 		return result, err
 	}
-	row := connection.QueryRow(ctx, sql, args...)
+	rows, err := connection.Query(ctx, sql, args...)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
 
-	result = repo.generateFunc()
-	err = row.Scan(result)
+	result, err = pgx.CollectOneRow(rows, pgx.RowToStructByName[M])
 	if err != nil {
 		return result, err
 	}
@@ -46,67 +48,113 @@ func (repo *BaseRepositoryImpl[M]) SelectOne(ctx context.Context, sql string, ar
 
 func (repo *BaseRepositoryImpl[M]) Select(ctx context.Context, sql string, args ...any) ([]M, error) {
 	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
-	defer fnClose()
 	if err != nil {
 		return nil, err
 	}
-
+	defer fnClose()
 	rows, err := connection.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	fields := repo.fields(rows)
 
-	var objects []M
-
-	for rows.Next() {
-		object := repo.generateFunc()
-		err := object.Scan(fields, rows.Scan)
-		if err != nil {
-			return nil, err
-		}
-		objects = append(objects, object)
+	result, err := pgx.CollectRows(rows, pgx.RowToStructByName[M])
+	if err != nil {
+		return result, err
 	}
-
-	return objects, nil
+	return result, nil
 }
 
-func (repo *BaseRepositoryImpl[M]) Create(ctx context.Context, m M) (M, error) {
-	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
-	defer fnClose()
+func (repo *BaseRepositoryImpl[M]) Update(ctx context.Context, m M) error {
+	connenction, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
 	if err != nil {
-		fmt.Println("err fetch connection ")
-		return repo.generateFunc(), err
+		return err
 	}
-	values := m.Params()
+	defer fnClose()
+	nameKey, key := m.PrimaryKey()
+	sql, args, err := repo.dialect.Update(repo.tableName).
+		Set(m).Where(
+		goqu.T(repo.tableName).Col(nameKey).Eq(key),
+	).Prepared(true).ToSQL()
+	if err != nil {
+		return err
+	}
+	affected, err := connenction.Exec(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+	if affected.RowsAffected() == 0 {
+		return ErrNoAffectedRows
+	}
+	return nil
+}
 
-	sql, args, err2 := squirrel.
-		StatementBuilder.
-		PlaceholderFormat(squirrel.Dollar).
-		Insert(repo.tableName).
-		SetMap(values).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-	if err2 != nil {
-		fmt.Println("err build sql build")
-		return repo.generateFunc(), err2
+func (repo *BaseRepositoryImpl[M]) Create(ctx context.Context, m M) error {
+	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer fnClose()
+	sql, args, err := repo.dialect.Insert(repo.tableName).
+		Rows(m).
+		Prepared(true).
+		ToSQL()
+
+	if err != nil {
+		//fmt.Println("err build sql build")
+		return err
 	}
 
 	if _, err = connection.Exec(ctx, sql, args...); err != nil {
-		fmt.Println("err exec object: ", err.Error())
-		return repo.generateFunc(), err
+		//fmt.Println("err exec object: ", err.Error())
+		return err
 	}
-	fmt.Println("complete create object")
-	return m, nil
+	//fmt.Println("complete create object")
+	return nil
 }
 
-func (repo *BaseRepositoryImpl[M]) fields(rows pgx.Rows) []string {
-	columns := rows.FieldDescriptions()
-	fields := make([]string, 0, len(columns))
-
-	for _, d := range columns {
-		fields = append(fields, d.Name)
+func (repo *BaseRepositoryImpl[M]) CreateBatch(ctx context.Context, m []M) error {
+	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
+	if err != nil {
+		return err
 	}
-	return fields
+	defer fnClose()
+	sql, args, err := repo.dialect.Insert(repo.tableName).
+		Rows(m).
+		Prepared(true).
+		ToSQL()
+
+	if err != nil {
+		//fmt.Println("err build sql build")
+		return err
+	}
+
+	if _, err = connection.Exec(ctx, sql, args...); err != nil {
+		//fmt.Println("err exec object: ", err.Error())
+		return err
+	}
+	//fmt.Println("complete create object")
+	return nil
+}
+
+func (repo *BaseRepositoryImpl[M]) Delete(ctx context.Context, ids []any) error {
+	connection, fnClose, err := repo.ctxManager.GetDefaultOrTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer fnClose()
+
+	sql, args, err := repo.dialect.Delete(repo.tableName).
+		Where(goqu.T(repo.tableName).Col("id").In(ids)).
+		Prepared(true).
+		ToSQL()
+
+	if err != nil {
+		return err
+	}
+
+	if _, err = connection.Exec(ctx, sql, args...); err != nil {
+		return err
+	}
+	return nil
 }

@@ -51,10 +51,6 @@ func (s SmartSpanBase) End(options ...trace.SpanEndOption) {
 
 func (s SmartSpanBase) AddEvent(name string, options ...trace.EventOption) {
 	s.spanBase.AddEvent(name, options...)
-	//trace.WithSchemaURL()
-	if s.logger == nil {
-		(s.logger).Info(name)
-	}
 }
 
 func (s SmartSpanBase) AddLink(link trace.Link) {

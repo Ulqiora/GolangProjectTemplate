@@ -1,0 +1,53 @@
+server_info:
+  name: "service-test"
+  grpc_connection:
+    host: "localhost"
+    port: "10000"
+  http_connection:
+    host: "localhost"
+    port: "10001"
+
+database:
+  postgres:
+    host: "localhost"
+    port: "5435"
+    user: "postgres"
+    password: "postgres"
+    database: "postgres"
+    ssl_mode: "disable"
+    settings:
+      max_open_connections: 10
+      conn_max_lifetime: 10
+      max_idle_connections: 10
+      conn_idle_time: 10
+
+trace:
+  jaeger:
+    endpoint: "http://jaeger:14268/api/traces"
+    service_name: "outbox"
+
+auth:
+  jwt:
+    secret_key: "hjGQ9j7e3QybxqRS2u8B08aLOSzVDqZMD3EsTOJBDacE6EG829XslVEs"
+    time_expiration: 5
+  bcrypt:
+    secret_key: "aaK5poOp2QBukTxxJn6CL2bJEnYQIgUqbTarXgiDBaUSzpf63OzWcVcA"
+  aesgcm_256:
+    secret_key: "fl72runpQqrymsWxNGaF3nPxiEBv65hY"
+
+kafka:
+  env: stage
+  topic: user
+  brokers: ["localhost:29092"]
+  compression_type: 0
+  network:
+    sasl:
+      enable: false
+    tls:
+      enable: false
+  produce-settings:
+    required_acks: -1
+    idempotency_key: true
+    save_returning_status:
+      errors: true
+      succeeded: true

@@ -27,6 +27,10 @@ func NewUserHandlers(usecase *authorization.UserUsecase) *Handlers {
 	}
 }
 
+//func (m *Handlers) SetupHandler(grpcServer) {
+//	user_v1.RegisterAuthServiceServer(grpcServer, m)
+//}
+
 type ErrorMessage struct {
 	Message string `json:"message"`
 	Code    int    `json:"code"`

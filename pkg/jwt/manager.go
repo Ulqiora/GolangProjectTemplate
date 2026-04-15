@@ -3,7 +3,7 @@ package jwt
 import (
 	"errors"
 	"time"
-	
+
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -35,7 +35,7 @@ func (m *JWTManager) Generate(userID, email string) (string, error) {
 			Issuer:    email,
 		},
 	}
-	
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(m.secretKey))
 }
@@ -52,16 +52,16 @@ func (m *JWTManager) Verify(accessToken string) (*Claims, error) {
 			return []byte(m.secretKey), nil
 		},
 	)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	claims, ok := token.Claims.(*Claims)
 	if !ok || !token.Valid {
 		return nil, errors.New("invalid token")
 	}
-	
+
 	return claims, nil
 }
 
@@ -70,6 +70,6 @@ func (m *JWTManager) GenerateRefreshToken() (string, error) {
 	claims := token.Claims.(jwt.MapClaims)
 	claims["exp"] = time.Now().Add(24 * 7 * time.Hour).Unix()
 	claims["type"] = "refresh"
-	
+
 	return token.SignedString([]byte(m.secretKey))
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 	"time"
-	
+
 	user_v1 "GolangTemplateProject/internal/adapters/primary/generated/user"
 	"GolangTemplateProject/internal/domain"
 	"github.com/gin-gonic/gin"
@@ -101,5 +101,5 @@ func (m *Handlers) Login(ctx *gin.Context) {
 	if err := m.validator.Struct(loginRequest); err != nil {
 		ctx.JSON(http.StatusBadRequest, ErrorMessage{Message: err.Error(), Code: http.StatusBadRequest})
 	}
-	
+
 }
