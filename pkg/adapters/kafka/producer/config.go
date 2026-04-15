@@ -57,29 +57,42 @@ type SASL struct {
 
 func BuildProduceConfig(config Config) (*sarama.Config, error) {
 	saramaConfig := sarama.NewConfig()
+	saramaConfig.Version = sarama.V2_3_0_0
 	saramaConfig.Producer.Return.Errors = config.ProduceSettings.SaveReturningStatus.Errors
 	saramaConfig.Producer.Return.Successes = config.ProduceSettings.SaveReturningStatus.Succeeded
 	saramaConfig.Producer.Idempotent = config.ProduceSettings.Idempotency
-	//saramaConfig.Producer.Transaction.ID = config.ProduceSettings.TransactionalID
-	saramaConfig.Producer.Compression = sarama.CompressionNone
-	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+	saramaConfig.Producer.Transaction.ID = config.ProduceSettings.TransactionalID
+	saramaConfig.Producer.Compression = sarama.CompressionCodec(config.CompressionType)
+	saramaConfig.Producer.RequiredAcks = sarama.RequiredAcks(config.ProduceSettings.RequiredAcks)
 	saramaConfig.Producer.Partitioner = sarama.NewRoundRobinPartitioner
-	saramaConfig.Net.MaxOpenRequests = 1
-	if config.Network.Sasl.Enable == true {
+	if saramaConfig.Producer.Idempotent || saramaConfig.Producer.Transaction.ID != "" {
+		saramaConfig.Net.MaxOpenRequests = 1
+	}
+	if config.Network.Sasl.Enable {
 		saramaConfig.Net.SASL.Enable = true
 		saramaConfig.Net.SASL.User = config.Network.Sasl.Username
 		saramaConfig.Net.SASL.Password = config.Network.Sasl.Password
-		saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+
+		switch config.Network.Sasl.Mechanism {
+		case "SCRAM-SHA-512":
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+		case "SCRAM-SHA-256":
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+		case "PLAIN":
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+		default:
+			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+		}
 	}
 	if config.Network.TLS.Enabled {
 		saramaConfig.Net.TLS.Enable = true
 		cert, err := tls.X509KeyPair(config.Network.TLS.ClientCert, config.Network.TLS.ClientKey)
 		if err != nil {
-			return nil, fmt.Errorf("error loading client keypair: %v", err)
+			return nil, fmt.Errorf("%w: %w", ErrLoadTLSClientKeyPair, err)
 		}
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM(config.Network.TLS.RootCert) {
-			return nil, fmt.Errorf("failed to add root certificate")
+			return nil, ErrAppendTLSRootCert
 		}
 		saramaConfig.Net.TLS.Config = &tls.Config{
 			Certificates: []tls.Certificate{cert},

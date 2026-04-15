@@ -4,69 +4,119 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"GolangTemplateProject/pkg/adapters/kafka"
 	"GolangTemplateProject/pkg/adapters/kafka/producer"
+	"GolangTemplateProject/pkg/logger"
+	"GolangTemplateProject/pkg/logger/attribute"
 	"github.com/IBM/sarama"
 )
 
-type TopicProducer struct {
-	topic          string
-	producerSamara sarama.SyncProducer
-	logger         sarama.StdLogger
+type TopicProducer[T any] struct {
+	topic      string
+	producer   sarama.SyncProducer
+	logger     logger.Logger
+	serializer producer.Serializer[T]
+	metrics    *producer.Metrics
 }
 
-func NewTopicProducer(config producer.Config, logger sarama.StdLogger) (kafka.ProducerKafka, error) {
+func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T]) (*TopicProducer[T], error) {
 	saramaConfig, err := producer.BuildProduceConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("error building kafka sarama config: %s", err.Error())
+		return nil, fmt.Errorf("%w: %w", producer.ErrBuildSaramaConfig, err)
 	}
 	syncProducer, err := sarama.NewSyncProducer(config.Brokers, saramaConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", producer.ErrCreateSyncProducer, err)
 	}
-	return &TopicProducer{
-		topic:          config.Topic,
-		producerSamara: syncProducer,
-		logger:         logger,
+	if serializer == nil {
+		serializer = producer.DefaultSerializer[T]
+	}
+	baseLogger := log
+	if baseLogger == nil {
+		baseLogger = logger.DefaultLogger()
+	}
+	if baseLogger == nil {
+		return nil, producer.ErrLoggerIsNil
+	}
+
+	producerLogger := baseLogger.With(
+		attribute.String("topic", config.Topic),
+		attribute.Int("brokers_count", len(config.Brokers)),
+	)
+	producerLogger.Info(producer.LogProducerConfigured)
+
+	return &TopicProducer[T]{
+		topic:      config.Topic,
+		producer:   syncProducer,
+		logger:     producerLogger,
+		serializer: serializer,
+		metrics:    producer.ResolveProducerMetrics(),
 	}, nil
 }
 
-func (t *TopicProducer) SendMessages(message ...*sarama.ProducerMessage) error {
-	for i := range message {
-		message[i].Topic = t.topic
-	}
-	return t.producerSamara.SendMessages(message)
-}
-
-func (t *TopicProducer) SendMessage(message *sarama.ProducerMessage) error {
-	message.Topic = t.topic
-	partition, offset, err := t.producerSamara.SendMessage(message)
-	if err != nil {
-		return err
-	}
-	if t.logger != nil {
-		t.logger.Printf("Send message to partition %d at offset %d\n", partition, offset)
-	} else {
-		fmt.Printf("Send message to partition %d at offset %d\n", partition, offset)
-	}
-	return nil
-}
-
-func (t *TopicProducer) TopicName() string {
+func (t *TopicProducer[T]) TopicName() string {
 	return t.topic
 }
 
-func (t *TopicProducer) Run(_ context.Context, _ *sync.WaitGroup) error {
+func (t *TopicProducer[T]) Run(_ context.Context, _ *sync.WaitGroup) error {
 	return nil
 }
 
-func (t *TopicProducer) CommitTx() error {
-	return t.producerSamara.CommitTxn()
+func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error {
+	startedAt := time.Now()
+	producerMessage, err := producer.ToProducerMessage(t.topic, message, t.serializer)
+	if err != nil {
+		t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendSingle, producer.StatusError, startedAt)
+		return err
+	}
+	t.metrics.ObservePayload(producer.ProducerTypeSync, producerMessage.Topic, producer.MessagePayloadSize(producerMessage))
+	_, _, err = t.producer.SendMessage(producerMessage)
+	if err != nil {
+		t.logger.Error(
+			producer.ErrSendMessage.Error(),
+			attribute.String("error", err.Error()),
+		)
+		t.metrics.ObserveOperation(producer.ProducerTypeSync, producerMessage.Topic, producer.OperationSendSingle, producer.StatusError, startedAt)
+		return fmt.Errorf("%w: %w", producer.ErrSendMessage, err)
+	}
+	t.logger.Debug(producer.ErrSendMessage.Error(), attribute.String("status", "success"))
+	t.metrics.ObserveOperation(producer.ProducerTypeSync, producerMessage.Topic, producer.OperationSendSingle, producer.StatusSuccess, startedAt)
+	return nil
 }
-func (t *TopicProducer) BeginTx() error {
-	return t.producerSamara.BeginTxn()
+
+func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) error {
+	startedAt := time.Now()
+	producerMessages := make([]*sarama.ProducerMessage, 0, len(messages))
+	for i := range messages {
+		message, err := producer.ToProducerMessage(t.topic, messages[i], t.serializer)
+		if err != nil {
+			t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendBatch, producer.StatusError, startedAt)
+			return err
+		}
+		producerMessages = append(producerMessages, message)
+		t.metrics.ObservePayload(producer.ProducerTypeSync, message.Topic, producer.MessagePayloadSize(message))
+	}
+
+	if err := t.producer.SendMessages(producerMessages); err != nil {
+		t.logger.Error(
+			producer.ErrSendMessages.Error(),
+			attribute.String("error", err.Error()),
+			attribute.Int("messages_count", len(producerMessages)),
+		)
+		t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendBatch, producer.StatusError, startedAt)
+		return fmt.Errorf("%w: %w", producer.ErrSendMessages, err)
+	}
+	t.logger.Debug(
+		producer.ErrSendMessages.Error(),
+		attribute.String("status", "success"),
+		attribute.Int("messages_count", len(producerMessages)),
+	)
+	t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendBatch, producer.StatusSuccess, startedAt)
+	return nil
 }
-func (t *TopicProducer) AbortTx() error {
-	return t.producerSamara.AbortTxn()
+
+func (t *TopicProducer[T]) SendTypedMessagesTx(messages ...kafka.TypedMessage[T]) error {
+	return t.SendTypedMessages(messages...)
 }

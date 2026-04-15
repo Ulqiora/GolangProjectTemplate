@@ -3,6 +3,7 @@ package transaction_manager
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"GolangTemplateProject/pkg/adapters/postgres"
 	"GolangTemplateProject/pkg/logger"
@@ -15,7 +16,7 @@ const (
 
 type TransactionManager interface {
 	Do(context.Context, func(context.Context) error) error
-	Dox(context.Context, func(context.Context) error, pgx.TxOptions)
+	Dox(context.Context, func(context.Context) error, pgx.TxOptions) error
 }
 
 type TransactionManagerImpl struct {
@@ -44,25 +45,25 @@ func (t TransactionManagerImpl) Do(ctx context.Context, f func(ctx context.Conte
 
 	err = f(ctxTx)
 	if err != nil {
-		if err = tx.Rollback(ctxTx); err != nil && (errors.Is(err, pgx.ErrTxClosed)) {
+		if errRoll := tx.Rollback(ctx); errRoll != nil && (errors.Is(errRoll, pgx.ErrTxClosed)) {
 			t.log.Error(err.Error())
+			return fmt.Errorf("%v: %w", errRoll, err)
 		}
 		return err
 	}
-	err = tx.Commit(ctxTx)
+	err = tx.Commit(ctx)
 	if err != nil {
-		if err = tx.Rollback(ctx); err != nil && (errors.Is(err, pgx.ErrTxClosed)) {
-			t.log.Error(err.Error())
-		}
+		t.log.Error(err.Error())
+		return err
 	}
 	return nil
 }
 
-func (t TransactionManagerImpl) Dox(ctx context.Context, fn func(context.Context) error, opts pgx.TxOptions) {
+func (t TransactionManagerImpl) Dox(ctx context.Context, fn func(context.Context) error, opts pgx.TxOptions) error {
 	connection, err := t.pool.Connection(ctx)
 	if err != nil {
 		t.log.Error(err.Error())
-		return
+		return err
 	}
 	tx, err := connection.BeginTx(ctx, opts)
 	defer func() {
@@ -73,12 +74,16 @@ func (t TransactionManagerImpl) Dox(ctx context.Context, fn func(context.Context
 	ctx = context.WithValue(ctx, TxKey, tx)
 	err = fn(ctx)
 	if err != nil {
-		if err = tx.Rollback(ctx); err != nil && (errors.Is(err, pgx.ErrTxClosed)) {
+		if errRoll := tx.Rollback(ctx); errRoll != nil && errors.Is(errRoll, pgx.ErrTxClosed) {
 			t.log.Error(err.Error())
+			return fmt.Errorf("%v: %w", errRoll, err)
 		}
+		return err
 	}
 	err = tx.Commit(ctx)
 	if err != nil {
 		t.log.Error(err.Error())
+		return err
 	}
+	return nil
 }

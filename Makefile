@@ -18,7 +18,7 @@ all: dependup
 
 # --------------------SERVICES-UP
 .PHONY: dependup
-dependup: build docker-image
+dependup:
 	if ! docker network inspect ${NETWORK_NAME} >/dev/null 2>&1; then \
         docker network create ${NETWORK_NAME}; \
     fi

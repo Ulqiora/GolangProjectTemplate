@@ -4,12 +4,21 @@ import (
 	"encoding/json"
 	"time"
 
-	"GolangTemplateProject/internal/ports"
 	"github.com/google/uuid"
 )
 
+const (
+	UserSecretTable          = "UserSecret"
+	UserSecretUserId         = "user_id"
+	UserSecretHashedPassword = "hashed_password"
+	UserSecretOtpSecret      = "email"
+	UserSecretOtpUrl         = "lastname"
+	UserSecretNonce          = "firstname"
+	UserSecretUpdatedAt      = "created_at"
+)
+
 type UserSecrets struct {
-	UserId         uuid.UUID `json:"userId" db:"user_id"`
+	UserId         uuid.UUID `json:"user_id" db:"user_id"`
 	HashedPassword string    `json:"hashed_password" db:"hashed_password"`
 	OtpSecret      string    `json:"otp_secret" db:"otp_secret"`
 	OtpUrl         string    `json:"otp_url" db:"otp_url"`
@@ -19,21 +28,28 @@ type UserSecrets struct {
 
 func (u *UserSecrets) Params() map[string]interface{} {
 	return map[string]interface{}{
-		"user_id":         u.UserId,
-		"hashed_password": u.HashedPassword,
-		"otp_secret":      u.OtpSecret,
-		"otp_url":         u.OtpUrl,
-		"otp_nonce":       u.OtpNonce,
-		"updated_at":      u.UpdatedAt,
+		UserSecretUserId:         u.UserId,
+		UserSecretHashedPassword: u.HashedPassword,
+		UserSecretOtpSecret:      u.OtpSecret,
+		UserSecretOtpUrl:         u.OtpUrl,
+		UserSecretNonce:          u.OtpNonce,
+		UserSecretUpdatedAt:      u.UpdatedAt,
 	}
 }
 
 func (u *UserSecrets) Fields() []string {
-	return []string{"id", "email", "hashed_password"}
+	return []string{
+		UserSecretUserId,
+		UserSecretHashedPassword,
+		UserSecretOtpSecret,
+		UserSecretOtpUrl,
+		UserSecretNonce,
+		UserSecretUpdatedAt,
+	}
 }
 
-func (u *UserSecrets) PrimaryKey() any {
-	return u.UserId
+func (u *UserSecrets) PrimaryKey() (string, any) {
+	return UserId, u.UserId
 }
 func (u *UserSecrets) Marshal() ([]byte, error) {
 	return json.Marshal(u)
@@ -41,17 +57,4 @@ func (u *UserSecrets) Marshal() ([]byte, error) {
 
 func (u *UserSecrets) Unmarshal(bytes []byte) error {
 	return json.Unmarshal(bytes, &u)
-}
-
-func (u *UserSecrets) Scan(fields []string, scan ports.ScanFunc) error {
-	err := scanner(map[string]any{
-		"user_id":         &u.UserId,
-		"hashed_password": &u.HashedPassword,
-		"otp_secret":      &u.OtpSecret,
-		"otp_url":         &u.OtpUrl,
-		"otp_nonce":       &u.OtpNonce,
-		"updated_at":      &u.UpdatedAt,
-	}, fields, scan)
-
-	return err
 }

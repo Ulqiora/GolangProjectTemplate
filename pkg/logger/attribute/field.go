@@ -6,27 +6,13 @@ const (
 	TypeInt TypeContent = iota
 	TypeIntSlice
 
-	TypeInt8
-	TypeInt16
-	TypeInt32
 	TypeInt64
-
-	TypeUint8
-	TypeUint16
-	TypeUint32
-	TypeUint64
-
-	TypeFloat32
-	TypeFloat32Slice
 
 	TypeFloat64
 	TypeFloat64Slice
 
 	TypeString
-	TypeBytes
-
 	TypeInt64Slice
-	TypeUint64Slice
 )
 
 type Field interface {

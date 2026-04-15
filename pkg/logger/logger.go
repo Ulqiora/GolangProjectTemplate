@@ -1,10 +1,25 @@
 package logger
 
 import (
+	"context"
 	"errors"
 
 	"GolangTemplateProject/pkg/logger/attribute"
+	"GolangTemplateProject/pkg/smart-span/stacktrace"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+)
+
+type Env string
+
+const (
+	EnvDev   Env = "Dev"
+	EnvStage Env = "Stage"
+	EnvProd  Env = "Prod"
+)
+
+const (
+	ProjectLoggerCtxKey = "project_logger"
 )
 
 var (
@@ -28,134 +43,184 @@ type Logger interface {
 	Panic(msg string, fields ...attribute.Field)
 	Fatal(msg string, fields ...attribute.Field)
 	Sync() error
+	Stop()
 	With(fields ...attribute.Field) Logger
+	WithN(name string, fields ...attribute.Field) Logger
+	WithS(ctx context.Context, name string, fields ...attribute.Field) (Logger, context.Context)
 }
 
-type LoggerImpl struct {
+type loggerImpl struct {
+	name       string
 	loggerBase *zap.Logger
+	tracer     trace.Tracer
+	span       trace.Span
 }
 
-func (t LoggerImpl) Debug(msg string, fields ...attribute.Field) {
+func (t loggerImpl) Debug(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.Debug(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) Info(msg string, fields ...attribute.Field) {
+func (t loggerImpl) Info(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.Info(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) Warn(msg string, fields ...attribute.Field) {
+func (t loggerImpl) Warn(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.Warn(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) Error(msg string, fields ...attribute.Field) {
+func (t loggerImpl) Error(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.Error(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) DPanic(msg string, fields ...attribute.Field) {
+func (t loggerImpl) DPanic(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.DPanic(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) Panic(msg string, fields ...attribute.Field) {
+func (t loggerImpl) Panic(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.Panic(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) Fatal(msg string, fields ...attribute.Field) {
+func (t loggerImpl) Fatal(msg string, fields ...attribute.Field) {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	t.loggerBase.Fatal(msg, zapFields...)
+	if t.span != nil {
+		t.span.AddEvent(msg, trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		))
+	}
 }
 
-func (t LoggerImpl) Sync() error {
+func (t loggerImpl) Sync() error {
 	return t.loggerBase.Sync()
 }
 
-func (t LoggerImpl) With(fields ...attribute.Field) Logger {
+func (t loggerImpl) Stop() {
+	t.span.End()
+}
+
+func (t loggerImpl) With(fields ...attribute.Field) Logger {
 	zapFields := make([]zap.Field, 0, len(fields))
 	for _, f := range fields {
-		zapFields = append(zapFields, toZapField(f))
+		zapFields = append(zapFields, attribute.ToZapField(f))
 	}
 	logger := t.loggerBase.With(zapFields...)
-	return LoggerImpl{
+	return loggerImpl{
+		name:       t.name,
+		tracer:     t.tracer,
 		loggerBase: logger,
 	}
 }
 
-func NewLogger() (Logger, error) {
-	logger, err := zap.NewDevelopment()
-	return LoggerImpl{
+func (t loggerImpl) WithN(name string, fields ...attribute.Field) Logger {
+	name = t.name + ":" + name
+	fields = append(fields, attribute.String("name", name))
+	zapFields := make([]zap.Field, 0, len(fields))
+	for _, f := range fields {
+		zapFields = append(zapFields, attribute.ToZapField(f))
+	}
+	logger := t.loggerBase.With(zapFields...)
+	return loggerImpl{
+		name:       t.name + ":" + name,
+		tracer:     t.tracer,
+		loggerBase: logger,
+	}
+}
+
+func (t loggerImpl) WithS(ctx context.Context, name string, fields ...attribute.Field) (Logger, context.Context) {
+	name = t.name + ":" + name
+	fields = append(fields, attribute.String("name", name))
+	zapFields := make([]zap.Field, 0, len(fields))
+	for _, f := range fields {
+		zapFields = append(zapFields, attribute.ToZapField(f))
+	}
+	logger := t.loggerBase.With(zapFields...)
+	ctx, span := t.tracer.Start(
+		ctx,
+		stacktrace.TakeOnceCalledFunction(),
+		trace.WithAttributes(
+			attribute.ToOtelAttributes(fields)...,
+		),
+	)
+	return loggerImpl{
+		name:       name,
+		tracer:     t.tracer,
+		loggerBase: logger,
+		span:       span,
+	}, ctx
+}
+
+func NewLogger(env Env, tracer trace.Tracer) (Logger, error) {
+	logger, err := envTologger(env)
+	return loggerImpl{
+		tracer:     tracer,
 		loggerBase: logger,
 	}, err
 }
 
-func toZapField(f attribute.Field) zap.Field {
-	switch f.GetType() {
-	case attribute.TypeInt:
-		return zap.Int(f.GetKey(), f.GetContent().(int))
-	case attribute.TypeIntSlice:
-		return zap.Ints(f.GetKey(), f.GetContent().([]int))
-	case attribute.TypeInt8:
-		return zap.Int8(f.GetKey(), f.GetContent().(int8))
-	case attribute.TypeInt16:
-		return zap.Int16(f.GetKey(), f.GetContent().(int16))
-	case attribute.TypeInt32:
-		return zap.Int32(f.GetKey(), f.GetContent().(int32))
-	case attribute.TypeInt64:
-		return zap.Int64(f.GetKey(), f.GetContent().(int64))
-
-	case attribute.TypeUint8:
-		return zap.Uint8(f.GetKey(), f.GetContent().(uint8))
-	case attribute.TypeUint16:
-		return zap.Uint16(f.GetKey(), f.GetContent().(uint16))
-	case attribute.TypeUint32:
-		return zap.Uint32(f.GetKey(), f.GetContent().(uint32))
-	case attribute.TypeUint64:
-		return zap.Uint64(f.GetKey(), f.GetContent().(uint64))
-
-	case attribute.TypeFloat32:
-		return zap.Float32(f.GetKey(), f.GetContent().(float32))
-	case attribute.TypeFloat32Slice:
-		return zap.Float32s(f.GetKey(), f.GetContent().([]float32))
-
-	case attribute.TypeFloat64:
-		return zap.Float64(f.GetKey(), f.GetContent().(float64))
-	case attribute.TypeFloat64Slice:
-		return zap.Float64s(f.GetKey(), f.GetContent().([]float64))
-
-	case attribute.TypeString:
-		return zap.String(f.GetKey(), f.GetContent().(string))
-	case attribute.TypeBytes:
-		return zap.ByteString(f.GetKey(), f.GetContent().([]byte))
-
-	case attribute.TypeInt64Slice:
-		return zap.Int64s(f.GetKey(), f.GetContent().([]int64))
-	case attribute.TypeUint64Slice:
-		return zap.Uint64s(f.GetKey(), f.GetContent().([]uint64))
+func envTologger(env Env) (*zap.Logger, error) {
+	switch env {
+	case EnvDev:
+	case EnvStage:
+		return zap.NewDevelopment()
+	case EnvProd:
+		return zap.NewProduction()
 	}
-	return zap.Error(errors.New("unknown field type"))
+	return nil, errors.New("invalid environment")
 }
