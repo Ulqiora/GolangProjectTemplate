@@ -27,13 +27,14 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "X-axis: time. Y-axis: incoming messages rate from Kafka. Unit: messages per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "messages per second"
+            "axisLabel": "messages/s"
           },
           "unit": "ops"
         },
@@ -46,7 +47,6 @@
         "y": 0
       },
       "id": 1,
-      "description": "X-axis: time. Y-axis: successful send operations rate (ops/s). Unit: operations per second.",
       "options": {
         "legend": {
           "calcs": [],
@@ -62,13 +62,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (operation) (rate(kafka_producer_operations_total{status=\"success\", operation=~\"send_single|send_batch\"}[1m]))",
-          "legendFormat": "{{operation}}",
+          "expr": "sum by (topic) (rate(dlq_consumer_messages_received_total[1m]))",
+          "legendFormat": "{{topic}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Send Throughput (msg ops/s)",
+      "title": "Messages Received Rate",
       "type": "timeseries"
     },
     {
@@ -76,15 +76,16 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "X-axis: time. Y-axis: processing outcomes by status. Unit: messages per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "ratio (0-1)"
+            "axisLabel": "messages/s"
           },
-          "unit": "percentunit"
+          "unit": "ops"
         },
         "overrides": []
       },
@@ -95,29 +96,28 @@
         "y": 0
       },
       "id": 2,
-      "description": "X-axis: time. Y-axis: error ratio (errors/total) for send and tx operations. Unit: fraction (0..1) shown as percent.",
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(kafka_producer_operations_total{status=\"error\", operation=~\"send_single|send_batch|begin_tx|commit_tx|abort_tx\"}[5m])) / clamp_min(sum(rate(kafka_producer_operations_total{operation=~\"send_single|send_batch|begin_tx|commit_tx|abort_tx\"}[5m])), 0.0001)",
-          "legendFormat": "error ratio",
+          "expr": "sum by (status) (rate(dlq_consumer_messages_processed_total[1m]))",
+          "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Error Ratio",
+      "title": "Processed Rate by Status",
       "type": "timeseries"
     },
     {
@@ -125,6 +125,7 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "X-axis: time. Y-axis: p95 processing latency by status. Unit: seconds.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -144,7 +145,6 @@
         "y": 8
       },
       "id": 3,
-      "description": "X-axis: time. Y-axis: p95 latency of producer operations. Unit: seconds.",
       "options": {
         "legend": {
           "calcs": [],
@@ -160,13 +160,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, operation) (rate(kafka_producer_operation_duration_seconds_bucket{operation=~\"send_single|send_batch|begin_tx|commit_tx\"}[5m])))",
-          "legendFormat": "p95 {{operation}}",
+          "expr": "histogram_quantile(0.95, sum by (le, status) (rate(dlq_consumer_processing_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{status}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Operation Latency p95",
+      "title": "Processing Latency p95",
       "type": "timeseries"
     },
     {
@@ -174,15 +174,16 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "X-axis: time. Y-axis: DLQ write attempts by result status. Unit: writes per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "bytes"
+            "axisLabel": "writes/s"
           },
-          "unit": "bytes"
+          "unit": "ops"
         },
         "overrides": []
       },
@@ -193,29 +194,28 @@
         "y": 8
       },
       "id": 4,
-      "description": "X-axis: time. Y-axis: p95 payload size observed by producer. Unit: bytes.",
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single",
+          "mode": "multi",
           "sort": "none"
         }
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, producer_type) (rate(kafka_producer_payload_bytes_bucket[5m])))",
-          "legendFormat": "p95 {{producer_type}}",
+          "expr": "sum by (status) (rate(dlq_consumer_dlq_writes_total[1m]))",
+          "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Payload Size p95",
+      "title": "DLQ Writes Rate",
       "type": "timeseries"
     },
     {
@@ -223,26 +223,26 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "X-axis: time. Y-axis: active consumer sessions in the group. Unit: sessions.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "operations per second"
+            "axisLabel": "sessions"
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 0,
         "y": 16
       },
       "id": 5,
-      "description": "X-axis: time. Y-axis: transactional operation rate split by operation and status. Unit: operations per second.",
       "options": {
         "legend": {
           "calcs": [],
@@ -258,13 +258,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (operation, status) (rate(kafka_producer_operations_total{operation=~\"begin_tx|commit_tx|abort_tx|add_offsets|add_message\"}[5m]))",
-          "legendFormat": "{{operation}} {{status}}",
+          "expr": "sum(dlq_consumer_active_sessions)",
+          "legendFormat": "active_sessions",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Transactional Operations",
+      "title": "Active Sessions",
       "type": "timeseries"
     },
     {
@@ -272,26 +272,26 @@
         "type": "prometheus",
         "uid": "${DS_PROMETHEUS}"
       },
+      "description": "X-axis: time. Y-axis: total processed messages (cumulative counter). Unit: messages.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
-            "axisLabel": "events per second"
+            "axisLabel": "messages"
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 12,
         "y": 16
       },
       "id": 6,
-      "description": "X-axis: time. Y-axis: async producer events rate (queued, acked, error). Unit: events per second.",
       "options": {
         "legend": {
           "calcs": [],
@@ -307,13 +307,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (event) (rate(kafka_producer_async_events_total[1m]))",
-          "legendFormat": "{{event}}",
+          "expr": "sum by (status) (dlq_consumer_messages_processed_total)",
+          "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Async Producer Events",
+      "title": "Messages Processed Total (Cumulative)",
       "type": "timeseries"
     }
   ],
@@ -322,7 +322,7 @@
   "style": "dark",
   "tags": [
     "kafka",
-    "producer"
+    "consumer"
   ],
   "templating": {
     "list": [
@@ -352,8 +352,8 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Kafka Producer Overview",
-  "uid": "kafka-producer-overview",
+  "title": "Kafka Consumer Overview",
+  "uid": "kafka-consumer-overview",
   "version": 1,
   "weekStart": ""
 }

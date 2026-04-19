@@ -2,7 +2,7 @@ FROM golang:1.25-alpine AS builder
 WORKDIR /app
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o /out/producer-demo ./kafka/example/cmd/producer-demo
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor -o /out/producer-demo ./pkg/adapters/kafka/example/cmd/producer-demo
 
 FROM alpine:3.20
 RUN adduser -D -u 10001 app

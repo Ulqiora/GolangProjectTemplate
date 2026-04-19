@@ -35,6 +35,7 @@ type Metrics struct {
 	operationDuration *prometheus.HistogramVec
 	payloadBytes      *prometheus.HistogramVec
 	asyncEvents       *prometheus.CounterVec
+	messagesTotal     *prometheus.CounterVec
 }
 
 var (
@@ -86,6 +87,14 @@ func newProducerMetrics(registerer prometheus.Registerer) *Metrics {
 			},
 			[]string{"topic", "event"},
 		)),
+		messagesTotal: mustRegisterCounterVec(registerer, prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: defaultMetricsNamespace,
+				Name:      "messages_total",
+				Help:      "Total number of producer messages by producer type, topic and delivery status.",
+			},
+			[]string{"producer_type", "topic", "status"},
+		)),
 	}
 }
 
@@ -103,6 +112,13 @@ func (m *Metrics) ObservePayload(producerType, topic string, bytes int) {
 
 func (m *Metrics) ObserveAsyncEvent(topic, event string) {
 	m.asyncEvents.WithLabelValues(topic, event).Inc()
+}
+
+func (m *Metrics) ObserveMessages(producerType, topic, status string, count int) {
+	if count <= 0 {
+		return
+	}
+	m.messagesTotal.WithLabelValues(producerType, topic, status).Add(float64(count))
 }
 
 func mustRegisterCounterVec(registerer prometheus.Registerer, collector *prometheus.CounterVec) *prometheus.CounterVec {

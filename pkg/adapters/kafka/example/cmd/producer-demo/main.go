@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -74,7 +75,29 @@ func main() {
 }
 
 func runProducerLoop(ctx context.Context, producer kafka.TransactionalProducer[DemoEvent], log logger.Logger) {
-	ticker := time.NewTicker(1 * time.Second)
+	batchSize := getEnvInt("PRODUCER_BATCH_SIZE", 1000)
+	sendInterval := getEnvDuration("PRODUCER_SEND_INTERVAL", 10*time.Millisecond)
+	payloadMin := getEnvInt("PRODUCER_PAYLOAD_MIN_BYTES", 2048)
+	payloadMax := getEnvInt("PRODUCER_PAYLOAD_MAX_BYTES", 8192)
+	logEveryNBatches := getEnvInt("PRODUCER_LOG_EVERY_N_BATCHES", 20)
+
+	if batchSize < 1 {
+		batchSize = 1
+	}
+	if sendInterval <= 0 {
+		sendInterval = 100 * time.Millisecond
+	}
+	if payloadMin < 1 {
+		payloadMin = 1
+	}
+	if payloadMax < payloadMin {
+		payloadMax = payloadMin
+	}
+	if logEveryNBatches < 1 {
+		logEveryNBatches = 1
+	}
+
+	ticker := time.NewTicker(sendInterval)
 	defer ticker.Stop()
 
 	batchID := 0
@@ -84,8 +107,13 @@ func runProducerLoop(ctx context.Context, producer kafka.TransactionalProducer[D
 			return
 		case <-ticker.C:
 			batchID++
-			messages := make([]kafka.TypedMessage[DemoEvent], 0, 20)
-			for i := 0; i < 20; i++ {
+			messages := make([]kafka.TypedMessage[DemoEvent], 0, batchSize)
+			for i := 0; i < batchSize; i++ {
+				payloadSize := payloadMin
+				if payloadMax > payloadMin {
+					payloadSize = payloadMin + rand.Intn(payloadMax-payloadMin+1)
+				}
+
 				event := DemoEvent{
 					ID:        fmt.Sprintf("evt-%d-%d", batchID, i),
 					Type:      "payment.authorized",
@@ -93,7 +121,7 @@ func runProducerLoop(ctx context.Context, producer kafka.TransactionalProducer[D
 					Amount:    float64(rand.Intn(50000)) / 100,
 					Currency:  "RUB",
 					CreatedAt: time.Now().UTC(),
-					Payload:   randomString(256 + rand.Intn(2048)),
+					Payload:   randomString(payloadSize),
 				}
 
 				messages = append(messages, kafka.TypedMessage[DemoEvent]{
@@ -115,11 +143,14 @@ func runProducerLoop(ctx context.Context, producer kafka.TransactionalProducer[D
 				continue
 			}
 
-			log.Info(
-				"Producer batch sent",
-				attribute.Int("batch_id", batchID),
-				attribute.Int("messages", len(messages)),
-			)
+			if batchID%logEveryNBatches == 0 {
+				log.Info(
+					"Producer batch sent",
+					attribute.Int("batch_id", batchID),
+					attribute.Int("messages", len(messages)),
+					attribute.String("send_interval", sendInterval.String()),
+				)
+			}
 		}
 	}
 }
@@ -140,6 +171,34 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getEnvDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+
+	parsed, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
 }
 
 func randomString(n int) string {

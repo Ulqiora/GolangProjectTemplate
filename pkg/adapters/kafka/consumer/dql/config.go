@@ -17,6 +17,9 @@ var (
 		"sticky":      sarama.NewBalanceStrategySticky(),
 	}
 	isolationLevelMap = map[string]sarama.IsolationLevel{
+		"committed":   sarama.ReadCommitted,
+		"uncommitted": sarama.ReadUncommitted,
+		// Backward-compatible aliases with legacy typo.
 		"commited":   sarama.ReadCommitted,
 		"uncommited": sarama.ReadUncommitted,
 	}
@@ -28,7 +31,7 @@ type Config struct {
 	// Brokers - hosts of kafka brokers
 	Brokers Brokers `yaml:"brokers"`
 	Network Network `yaml:"network"`
-	// CompressionType must be equal [0,1,2,3,4]
+	// Deprecated: kept for backward compatibility, not used by consumer.
 	CompressionType int8                 `yaml:"compression_type"`
 	GroupSettings   GroupSettings        `yaml:"group_settings"`
 	ConsumeSettings ConsumeProcessConfig `yaml:"consume_settings"`
@@ -39,9 +42,6 @@ type ConsumeProcessConfig struct {
 	DlqSave    bool          `yaml:"save_to_dlq"`
 	DlqTimeout time.Duration `yaml:"dlq_timeout"`
 	DlqRetries int8          `yaml:"dlq_retries"`
-	// Reading
-	TimeoutReadingMessage    time.Duration `yaml:"timeout_reading_message"`
-	MessageProcessingRetries int8          `yaml:"message_processing_retries"`
 	// Batch settings
 	BatchEnabled bool          `yaml:"batch_enabled"`
 	BatchSize    int           `yaml:"batch_size"`

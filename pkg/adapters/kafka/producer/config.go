@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	// Deprecated: kept only for backward compatibility.
 	Env string `yaml:"env"`
 	// Topic - one topic name
 	Topic string `yaml:"topic"`
@@ -56,6 +57,10 @@ type SASL struct {
 }
 
 func BuildProduceConfig(config Config) (*sarama.Config, error) {
+	if err := validateConfig(config); err != nil {
+		return nil, err
+	}
+
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = sarama.V2_3_0_0
 	saramaConfig.Producer.Return.Errors = config.ProduceSettings.SaveReturningStatus.Errors
@@ -100,5 +105,36 @@ func BuildProduceConfig(config Config) (*sarama.Config, error) {
 		}
 	}
 
+	if err := saramaConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrValidateSaramaConfig, err)
+	}
+
 	return saramaConfig, nil
+}
+
+func validateConfig(config Config) error {
+	if config.Topic == "" {
+		return ErrTopicRequired
+	}
+	if len(config.Brokers) == 0 {
+		return ErrBrokersRequired
+	}
+
+	switch config.CompressionType {
+	case int8(sarama.CompressionNone),
+		int8(sarama.CompressionGZIP),
+		int8(sarama.CompressionSnappy),
+		int8(sarama.CompressionLZ4),
+		int8(sarama.CompressionZSTD):
+	default:
+		return fmt.Errorf("%w: %d", ErrUnsupportedCompression, config.CompressionType)
+	}
+
+	switch sarama.RequiredAcks(config.ProduceSettings.RequiredAcks) {
+	case sarama.NoResponse, sarama.WaitForLocal, sarama.WaitForAll:
+	default:
+		return fmt.Errorf("%w: %d", ErrUnsupportedRequiredAcks, config.ProduceSettings.RequiredAcks)
+	}
+
+	return nil
 }

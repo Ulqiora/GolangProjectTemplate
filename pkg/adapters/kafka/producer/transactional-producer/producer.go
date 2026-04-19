@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"GolangTemplateProject/pkg/adapters/kafka"
@@ -19,6 +20,7 @@ type TopicProducer[T any] struct {
 	logger     logger.Logger
 	serializer producer.Serializer[T]
 	metrics    *producer.Metrics
+	pendingTx  atomic.Int64
 }
 
 func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T]) (*TopicProducer[T], error) {
@@ -90,8 +92,9 @@ func (t *TopicProducer[T]) sendProducerMessage(message *sarama.ProducerMessage) 
 		t.metrics.ObserveOperation(producer.ProducerTypeTransactional, message.Topic, producer.OperationSendSingle, producer.StatusError, startedAt)
 		return fmt.Errorf("%w: %w", producer.ErrSendMessage, err)
 	}
-	t.logger.Debug(producer.ErrSendMessage.Error(), attribute.String("status", "success"))
+	t.logger.Debug(producer.LogProducerMessageSent, attribute.String("status", "success"))
 	t.metrics.ObserveOperation(producer.ProducerTypeTransactional, message.Topic, producer.OperationSendSingle, producer.StatusSuccess, startedAt)
+	t.pendingTx.Add(1)
 	return nil
 }
 
@@ -110,11 +113,12 @@ func (t *TopicProducer[T]) sendProducerMessages(messages ...*sarama.ProducerMess
 		t.metrics.ObservePayload(producer.ProducerTypeTransactional, messages[i].Topic, producer.MessagePayloadSize(messages[i]))
 	}
 	t.logger.Debug(
-		producer.ErrSendMessages.Error(),
+		producer.LogProducerMessagesSent,
 		attribute.String("status", "success"),
 		attribute.Int("messages_count", len(messages)),
 	)
 	t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationSendBatch, producer.StatusSuccess, startedAt)
+	t.pendingTx.Add(int64(len(messages)))
 	return nil
 }
 
@@ -175,7 +179,7 @@ func (t *TopicProducer[T]) BeginTx() error {
 		t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationBeginTx, producer.StatusError, startedAt)
 		return fmt.Errorf("%w: %w", producer.ErrBeginTransaction, err)
 	}
-	t.logger.Debug(producer.ErrBeginTransaction.Error(), attribute.String("status", "success"))
+	t.logger.Debug(producer.LogTxBeginSucceeded, attribute.String("status", "success"))
 	t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationBeginTx, producer.StatusSuccess, startedAt)
 	return nil
 }
@@ -190,8 +194,10 @@ func (t *TopicProducer[T]) CommitTx() error {
 		t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationCommitTx, producer.StatusError, startedAt)
 		return fmt.Errorf("%w: %w", producer.ErrCommitTransaction, err)
 	}
-	t.logger.Debug(producer.ErrCommitTransaction.Error(), attribute.String("status", "success"))
+	t.logger.Debug(producer.LogTxCommitSucceeded, attribute.String("status", "success"))
 	t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationCommitTx, producer.StatusSuccess, startedAt)
+	pending := int(t.pendingTx.Swap(0))
+	t.metrics.ObserveMessages(producer.ProducerTypeTransactional, t.topic, producer.StatusSuccess, pending)
 	return nil
 }
 
@@ -205,8 +211,9 @@ func (t *TopicProducer[T]) AbortTx() error {
 		t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationAbortTx, producer.StatusError, startedAt)
 		return fmt.Errorf("%w: %w", producer.ErrAbortTransaction, err)
 	}
-	t.logger.Warn(producer.ErrAbortTransaction.Error(), attribute.String("status", "success"))
+	t.logger.Warn(producer.LogTxAbortSucceeded, attribute.String("status", "success"))
 	t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationAbortTx, producer.StatusSuccess, startedAt)
+	t.pendingTx.Store(0)
 	return nil
 }
 
@@ -251,5 +258,9 @@ func (t *TopicProducer[T]) AddMessageToTx(msg *sarama.ConsumerMessage, groupID s
 }
 
 func (t *TopicProducer[T]) Close() error {
-	return t.producer.Close()
+	if err := t.producer.Close(); err != nil {
+		return err
+	}
+	t.logger.Info(producer.LogProducerClosed)
+	return nil
 }

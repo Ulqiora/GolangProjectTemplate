@@ -34,7 +34,7 @@ func TestConsumerPerformance(t *testing.T) {
 				GroupID:                 groupID,
 				OffsetInitial:           "old",
 				RebalancedGroupStrategy: "round-robin",
-				IsolationLevel:          "commited",
+				IsolationLevel:          "committed",
 				ReturnErrors:            true,
 			},
 			ConsumeSettings: ConsumeProcessConfig{

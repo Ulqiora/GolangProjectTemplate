@@ -103,7 +103,7 @@ group_settings:
   group_id: "outbox-consumer"
   offset_initial: "old"
   return_errors: true
-  isocation_level: "commited"
+  isocation_level: "committed"
 
 # Batch settings
 batch_enabled: true      # Включить батчинг

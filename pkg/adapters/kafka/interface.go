@@ -21,6 +21,13 @@ type TypedProducer[T any] interface {
 	Runnable
 }
 
+// ClosableTypedProducer extends TypedProducer with explicit resource cleanup.
+// It is kept as a separate interface to preserve backward compatibility.
+type ClosableTypedProducer[T any] interface {
+	TypedProducer[T]
+	Close() error
+}
+
 type TransactionalProducer[T any] interface {
 	TypedProducer[T]
 	BeginTx() error
@@ -35,4 +42,11 @@ type Consumer interface {
 	GroupID() string
 	ResumePartitions()
 	WaitStoppedSession() <-chan struct{}
+}
+
+// ClosableConsumer extends Consumer with explicit resource cleanup.
+// It is kept as a separate interface to preserve backward compatibility.
+type ClosableConsumer interface {
+	Consumer
+	Close() error
 }

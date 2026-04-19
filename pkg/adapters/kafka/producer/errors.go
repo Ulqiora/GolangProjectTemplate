@@ -4,11 +4,17 @@ import "errors"
 
 var (
 	ErrBuildSaramaConfig       = errors.New("build kafka sarama config")
+	ErrValidateSaramaConfig    = errors.New("validate kafka sarama config")
 	ErrCreateSyncProducer      = errors.New("create kafka sync producer")
 	ErrCreateAsyncProducer     = errors.New("create kafka async producer")
 	ErrCreateTxProducer        = errors.New("create kafka transactional producer")
 	ErrTransactionalIDRequired = errors.New("transactional id is required for transactional producer")
 	ErrLoggerIsNil             = errors.New("logger is nil")
+	ErrWaitGroupIsNil          = errors.New("wait group is nil")
+	ErrTopicRequired           = errors.New("topic is required")
+	ErrBrokersRequired         = errors.New("at least one broker is required")
+	ErrUnsupportedCompression  = errors.New("unsupported compression type")
+	ErrUnsupportedRequiredAcks = errors.New("unsupported required acks")
 	ErrSendMessage             = errors.New("send kafka message")
 	ErrSendMessages            = errors.New("send kafka messages")
 	ErrBeginTransaction        = errors.New("begin kafka transaction")

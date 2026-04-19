@@ -61,13 +61,31 @@ func (t *TopicProducer[T]) TopicName() string {
 }
 
 func (t *TopicProducer[T]) Run(ctx context.Context, group *sync.WaitGroup) error {
+	if group == nil {
+		return producer.ErrWaitGroupIsNil
+	}
+
 	group.Add(1)
-	defer group.Done()
 	t.logger.Info(producer.LogAsyncLoopStarted)
+
 	go func() {
+		defer group.Done()
+
+		errorsCh := t.producer.Errors()
+		successesCh := t.producer.Successes()
+
 		for {
 			select {
-			case err := <-t.producer.Errors():
+			case err, ok := <-errorsCh:
+				if !ok {
+					errorsCh = nil
+					t.logger.Info(producer.LogAsyncErrorsChannelClosed)
+					if successesCh == nil {
+						t.logger.Info(producer.LogAsyncLoopStopped)
+						return
+					}
+					continue
+				}
 				if err == nil {
 					continue
 				}
@@ -77,16 +95,27 @@ func (t *TopicProducer[T]) Run(ctx context.Context, group *sync.WaitGroup) error
 				}
 				t.metrics.ObserveAsyncEvent(topic, producer.StatusError)
 				t.metrics.ObserveOperation(producer.ProducerTypeAsync, topic, producer.OperationQueue, producer.StatusError, time.Now())
+				t.metrics.ObserveMessages(producer.ProducerTypeAsync, topic, producer.StatusError, 1)
 				t.logger.Error(
 					producer.LogAsyncProducerReturnedError,
 					attribute.String("error", err.Err.Error()),
 				)
-			case msg := <-t.producer.Successes():
+			case msg, ok := <-successesCh:
+				if !ok {
+					successesCh = nil
+					t.logger.Info(producer.LogAsyncSuccessesChannelClosed)
+					if errorsCh == nil {
+						t.logger.Info(producer.LogAsyncLoopStopped)
+						return
+					}
+					continue
+				}
 				if msg == nil {
 					continue
 				}
 				t.metrics.ObserveAsyncEvent(msg.Topic, producer.StatusAcked)
 				t.metrics.ObserveOperation(producer.ProducerTypeAsync, msg.Topic, producer.OperationQueue, producer.StatusAcked, time.Now())
+				t.metrics.ObserveMessages(producer.ProducerTypeAsync, msg.Topic, producer.StatusAcked, 1)
 				t.logger.Debug(
 					producer.LogAsyncProducerDeliveredMessage,
 					attribute.String("topic", msg.Topic),
@@ -113,7 +142,8 @@ func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error
 	t.metrics.ObservePayload(producer.ProducerTypeAsync, producerMessage.Topic, producer.MessagePayloadSize(producerMessage))
 	t.metrics.ObserveOperation(producer.ProducerTypeAsync, producerMessage.Topic, producer.OperationQueue, producer.StatusQueued, startedAt)
 	t.metrics.ObserveAsyncEvent(producerMessage.Topic, producer.StatusQueued)
-	t.logger.Debug(producer.ErrSendMessage.Error(), attribute.String("status", "queued"))
+	t.metrics.ObserveMessages(producer.ProducerTypeAsync, producerMessage.Topic, producer.StatusQueued, 1)
+	t.logger.Debug(producer.LogProducerMessageQueued, attribute.String("status", "queued"))
 	return nil
 }
 
@@ -130,10 +160,11 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 		topic = producerMessage.Topic
 		t.metrics.ObservePayload(producer.ProducerTypeAsync, producerMessage.Topic, producer.MessagePayloadSize(producerMessage))
 		t.metrics.ObserveAsyncEvent(producerMessage.Topic, producer.StatusQueued)
+		t.metrics.ObserveMessages(producer.ProducerTypeAsync, producerMessage.Topic, producer.StatusQueued, 1)
 	}
 	t.metrics.ObserveOperation(producer.ProducerTypeAsync, topic, producer.OperationSendBatch, producer.StatusQueued, startedAt)
 	t.logger.Debug(
-		producer.ErrSendMessages.Error(),
+		producer.LogProducerMessagesSent,
 		attribute.String("status", "queued"),
 		attribute.Int("messages_count", len(messages)),
 	)
@@ -142,4 +173,12 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 
 func (t *TopicProducer[T]) SendTypedMessagesTx(messages ...kafka.TypedMessage[T]) error {
 	return t.SendTypedMessages(messages...)
+}
+
+func (t *TopicProducer[T]) Close() error {
+	if err := t.producer.Close(); err != nil {
+		return err
+	}
+	t.logger.Info(producer.LogProducerClosed)
+	return nil
 }

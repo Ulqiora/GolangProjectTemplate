@@ -22,11 +22,15 @@ type TopicProducer[T any] struct {
 }
 
 func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T]) (*TopicProducer[T], error) {
-	saramaConfig, err := producer.BuildProduceConfig(config)
+	cfg := config
+	cfg.ProduceSettings.SaveReturningStatus.Errors = true
+	cfg.ProduceSettings.SaveReturningStatus.Succeeded = true
+
+	saramaConfig, err := producer.BuildProduceConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", producer.ErrBuildSaramaConfig, err)
 	}
-	syncProducer, err := sarama.NewSyncProducer(config.Brokers, saramaConfig)
+	syncProducer, err := sarama.NewSyncProducer(cfg.Brokers, saramaConfig)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", producer.ErrCreateSyncProducer, err)
 	}
@@ -42,13 +46,13 @@ func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializ
 	}
 
 	producerLogger := baseLogger.With(
-		attribute.String("topic", config.Topic),
-		attribute.Int("brokers_count", len(config.Brokers)),
+		attribute.String("topic", cfg.Topic),
+		attribute.Int("brokers_count", len(cfg.Brokers)),
 	)
 	producerLogger.Info(producer.LogProducerConfigured)
 
 	return &TopicProducer[T]{
-		topic:      config.Topic,
+		topic:      cfg.Topic,
 		producer:   syncProducer,
 		logger:     producerLogger,
 		serializer: serializer,
@@ -81,8 +85,9 @@ func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error
 		t.metrics.ObserveOperation(producer.ProducerTypeSync, producerMessage.Topic, producer.OperationSendSingle, producer.StatusError, startedAt)
 		return fmt.Errorf("%w: %w", producer.ErrSendMessage, err)
 	}
-	t.logger.Debug(producer.ErrSendMessage.Error(), attribute.String("status", "success"))
+	t.logger.Debug(producer.LogProducerMessageSent, attribute.String("status", "success"))
 	t.metrics.ObserveOperation(producer.ProducerTypeSync, producerMessage.Topic, producer.OperationSendSingle, producer.StatusSuccess, startedAt)
+	t.metrics.ObserveMessages(producer.ProducerTypeSync, producerMessage.Topic, producer.StatusSuccess, 1)
 	return nil
 }
 
@@ -109,14 +114,23 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 		return fmt.Errorf("%w: %w", producer.ErrSendMessages, err)
 	}
 	t.logger.Debug(
-		producer.ErrSendMessages.Error(),
+		producer.LogProducerMessagesSent,
 		attribute.String("status", "success"),
 		attribute.Int("messages_count", len(producerMessages)),
 	)
 	t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendBatch, producer.StatusSuccess, startedAt)
+	t.metrics.ObserveMessages(producer.ProducerTypeSync, t.topic, producer.StatusSuccess, len(producerMessages))
 	return nil
 }
 
 func (t *TopicProducer[T]) SendTypedMessagesTx(messages ...kafka.TypedMessage[T]) error {
 	return t.SendTypedMessages(messages...)
+}
+
+func (t *TopicProducer[T]) Close() error {
+	if err := t.producer.Close(); err != nil {
+		return err
+	}
+	t.logger.Info(producer.LogProducerClosed)
+	return nil
 }

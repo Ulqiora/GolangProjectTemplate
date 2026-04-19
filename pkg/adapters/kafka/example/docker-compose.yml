@@ -24,6 +24,11 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 24
+      KAFKA_LOG_RETENTION_HOURS: 1
+      KAFKA_LOG_RETENTION_BYTES: 536870912
+      KAFKA_LOG_SEGMENT_BYTES: 134217728
+      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 30000
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 10s
@@ -32,8 +37,8 @@ services:
 
   producer-demo:
     build:
-      context: ../..
-      dockerfile: kafka/example/Dockerfile
+      context: ../../../..
+      dockerfile: pkg/adapters/kafka/example/Dockerfile
     container_name: kafka-example-producer
     depends_on:
       kafka:
@@ -42,14 +47,54 @@ services:
       KAFKA_BROKER: kafka:29092
       KAFKA_TOPIC: demo.events
       KAFKA_TRANSACTIONAL_ID: demo-producer-tx
+      PRODUCER_BATCH_SIZE: 5000
+      PRODUCER_SEND_INTERVAL: 1ms
+      PRODUCER_PAYLOAD_MIN_BYTES: 4096
+      PRODUCER_PAYLOAD_MAX_BYTES: 16384
+      PRODUCER_LOG_EVERY_N_BATCHES: 200
     ports:
       - "2112:2112"
+
+  consumer-demo:
+    build:
+      context: ../../../..
+      dockerfile: pkg/adapters/kafka/example/Dockerfile.consumer
+    container_name: kafka-example-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER: kafka:29092
+      KAFKA_TOPIC: demo.events
+      KAFKA_GROUP_ID: demo-consumer-group
+      CONSUMER_BATCH_SIZE: 10000
+      CONSUMER_BATCH_TIMEOUT: 25ms
+      CONSUMER_DLQ_SAVE: "false"
+      CONSUMER_DLQ_RETRIES: 3
+      CONSUMER_DLQ_TIMEOUT: 2s
+      CONSUMER_LOG_EVERY_N_MESSAGES: 50000
+      CONSUMER_FAILURE_PERCENT: 0
+    ports:
+      - "2113:2113"
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: kafka-example-kafka-exporter
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - "--kafka.server=kafka:29092"
+    ports:
+      - "9308:9308"
 
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: kafka-example-prometheus
     depends_on:
       - producer-demo
+      - consumer-demo
+      - kafka-exporter
     ports:
       - "9090:9090"
     volumes:

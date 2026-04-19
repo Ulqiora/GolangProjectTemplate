@@ -8,13 +8,6 @@ import (
 	"github.com/IBM/sarama"
 )
 
-type claimMode interface {
-	HandleMessage(message *sarama.ConsumerMessage) error
-	HandleFlush(reason string) error
-	Timer() <-chan time.Time
-	Stop()
-}
-
 type singleClaimMode struct {
 	processBatch func(messages []*sarama.ConsumerMessage, reason string) error
 }

@@ -57,7 +57,7 @@ func main() {
             GroupID:        "user-events-consumer",
             OffsetInitial:  "old",
             ReturnErrors:   true,
-            IsolationLevel: "commited",
+            IsolationLevel: "committed",
         },
         ConsumeProcessConfig: dql.ConsumeProcessConfig{
             // Включаем батчинг
@@ -119,7 +119,7 @@ kafka_consumer:
     rebalance_strategy: "round-robin"
     offset_initial: "old"
     return_errors: true
-    isocation_level: "commited"
+    isocation_level: "committed"
     group_instance_id: "" # оставьте пустым для автоматической генерации
   
   # Настройки батчинга
@@ -131,10 +131,6 @@ kafka_consumer:
   save_to_dlq: true
   dlq_timeout: 5s
   dlq_retries: 3
-  
-  # Таймаут чтения сообщения
-  timeout_reading_message: 30s
-  message_processing_retries: 3
   
   # TLS (опционально)
   network:

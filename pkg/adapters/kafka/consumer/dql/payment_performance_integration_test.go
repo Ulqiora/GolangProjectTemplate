@@ -132,7 +132,7 @@ func TestConsumerPerformancePayments(t *testing.T) {
 				GroupID:                 groupID,
 				OffsetInitial:           "old",
 				RebalancedGroupStrategy: "round-robin",
-				IsolationLevel:          "commited",
+				IsolationLevel:          "committed",
 				ReturnErrors:            true,
 			},
 			ConsumeSettings: ConsumeProcessConfig{
@@ -423,7 +423,7 @@ func TestConsumerPerformancePaymentsWithDLQBatchSave(t *testing.T) {
 				GroupID:                 groupID,
 				OffsetInitial:           "old",
 				RebalancedGroupStrategy: "round-robin",
-				IsolationLevel:          "commited",
+				IsolationLevel:          "committed",
 				ReturnErrors:            true,
 			},
 			ConsumeSettings: ConsumeProcessConfig{

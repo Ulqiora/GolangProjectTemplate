@@ -2,6 +2,7 @@ package TxProducer
 
 import (
 	"sync"
+	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
@@ -46,6 +47,7 @@ func (p *producerProvider) borrow() (producer sarama.AsyncProducer) {
 			if producer != nil {
 				return
 			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
