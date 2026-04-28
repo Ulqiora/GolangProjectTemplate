@@ -41,8 +41,9 @@ type SmartSpan interface {
 }
 
 type SmartSpanBase struct {
-	spanBase trace.Span
-	logger   logger.Logger
+	spanBase       trace.Span
+	logger         logger.Logger
+	tracerProvider trace.TracerProvider
 }
 
 func (s SmartSpanBase) End(options ...trace.SpanEndOption) {
@@ -62,6 +63,10 @@ func (s SmartSpanBase) IsRecording() bool {
 }
 
 func (s SmartSpanBase) RecordError(err error, options ...trace.EventOption) {
+	if err == nil {
+		return
+	}
+
 	s.spanBase.RecordError(err, options...)
 	if s.logger != nil {
 		(s.logger).Error(err.Error())
@@ -85,6 +90,10 @@ func (s SmartSpanBase) SetAttributes(kv ...attribute.KeyValue) {
 }
 
 func (s SmartSpanBase) TracerProvider() trace.TracerProvider {
+	if s.tracerProvider != nil {
+		return s.tracerProvider
+	}
+
 	return defaultTracer.GetBaseTracer()
 }
 
@@ -95,18 +104,20 @@ type SmartSpanBuilder struct {
 
 func SetName(name string) SmartSpanBuilder {
 	var span SmartSpanBuilder
-	if name == "" {
-		span.name = stacktrace.TakeOnceCalledFunction()
-	} else {
-		span.name = name
-	}
+	span.name = name
 	return span
 }
 
-func (b *SmartSpanBuilder) Start(ctx context.Context) (context.Context, SmartSpanBase) {
-	ctx, span := defaultTracer.GetBaseTracer().Tracer(defaultServiceName).Start(ctx, b.name)
+func (b SmartSpanBuilder) Start(ctx context.Context) (context.Context, SmartSpanBase) {
+	name := b.name
+	if name == "" {
+		name = stacktrace.CallerFunctionName(1)
+	}
+
+	ctx, span := defaultTracer.GetBaseTracer().Tracer(defaultServiceName).Start(ctx, name)
 	return ctx, SmartSpanBase{
-		spanBase: span,
-		logger:   b.logger,
+		spanBase:       span,
+		logger:         b.logger,
+		tracerProvider: defaultTracer.GetBaseTracer(),
 	}
 }

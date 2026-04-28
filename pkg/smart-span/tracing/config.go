@@ -6,6 +6,7 @@ type TracerConfig struct {
 	TLS      struct {
 		Enable          bool   `yaml:"enable"`
 		CertificatePath string `yaml:"certificate_path"`
+		KeyPath         string `yaml:"key_path"`
 		KayPath         string `yaml:"kay_path"`
 	} `yaml:"tls"`
 	Timeout     int64  `yaml:"timeout"`

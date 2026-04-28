@@ -123,18 +123,45 @@ func TakeOnceCalledFunction() string {
 	return stacktraceInfo.String()
 }
 
+// CallerFunctionName returns a stable function name for the caller frame.
+// skip=0 returns the caller of CallerFunctionName.
+// Returned value is shortened to the last path segment, e.g. "tracing.(*TracerBase).Start".
+func CallerFunctionName(skip int) string {
+	stack := Capture(skip+1, First)
+	defer stack.Free()
+
+	frame, _ := stack.Next()
+	if frame.Function == "" {
+		return ""
+	}
+
+	fn := frame.Function
+	if idx := strings.LastIndex(fn, "/"); idx >= 0 && idx+1 < len(fn) {
+		fn = fn[idx+1:]
+	}
+	return fn
+}
+
 func TakeCallerFunctionInfo() FunctionFrame {
 	stack := Capture(1, First)
 	defer stack.Free()
 
 	frame, _ := stack.Next()
 	functionData := strings.SplitN(frame.Function, ".", 2)
+	functionName := frame.Function
+	packageName := ""
+	if len(functionData) > 0 {
+		packageName = functionData[Package]
+	}
+	if len(functionData) > 1 {
+		functionName = functionData[FunctionName]
+	}
 
 	return FunctionFrame{
-		Package: functionData[Package],
+		Package: packageName,
 		File:    frame.File,
 		Line:    frame.Line,
-		Name:    functionData[FunctionName],
+		Name:    functionName,
 	}
 }
 
@@ -151,8 +178,12 @@ func NewStackFormatter() *StackFormatter {
 }
 
 func (sf *StackFormatter) FormatStack(stack *Stack) *StackFormatter {
-	for frame, more := stack.Next(); more; frame, more = stack.Next() {
+	for {
+		frame, more := stack.Next()
 		sf.FormatFrame(frame)
+		if !more {
+			break
+		}
 	}
 	return sf
 }

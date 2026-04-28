@@ -1,0 +1,23 @@
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+
+  smart-span-demo:
+    build:
+      context: ../../..
+      dockerfile: pkg/smart-span/example/Dockerfile
+    depends_on:
+      - jaeger
+    environment:
+      SMART_SPAN_SERVICE_NAME: smart-span-demo
+      SMART_SPAN_HTTP_PORT: "18080"
+      SMART_SPAN_OTLP_ENDPOINT: jaeger:4318
+      SMART_SPAN_JAEGER_UI: http://localhost:16686
+      SMART_SPAN_AUTO_FLOW_INTERVAL: 5s
+    ports:
+      - "18080:18080"

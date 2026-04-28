@@ -3,7 +3,6 @@ package tracing
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -15,22 +14,33 @@ import (
 )
 
 func InitTracing(ctx context.Context, cfg *TracerConfig) (*trace.TracerProvider, func(context.Context) error, error) {
+	if cfg == nil {
+		cfg = &TracerConfig{}
+	}
+
+	timeout := time.Duration(cfg.Timeout) * time.Second
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+
 	options := []otlptracehttp.Option{
 		otlptracehttp.WithEndpoint(cfg.Endpoint),
 		otlptracehttp.WithHeaders(cfg.Headers),
 		otlptracehttp.WithCompression(otlptracehttp.GzipCompression),
-		otlptracehttp.WithTimeout(time.Duration(cfg.Timeout) * time.Second),
+		otlptracehttp.WithTimeout(timeout),
 	}
 
-	fmt.Println("trace config ", cfg.Endpoint)
-
 	if cfg.TLS.Enable {
-		certificate, err := tls.LoadX509KeyPair(cfg.TLS.CertificatePath, cfg.TLS.KayPath)
+		keyPath := cfg.TLS.KeyPath
+		if keyPath == "" {
+			keyPath = cfg.TLS.KayPath
+		}
+
+		certificate, err := tls.LoadX509KeyPair(cfg.TLS.CertificatePath, keyPath)
 		if err != nil {
 			return nil, nil, err
 		}
 		options = append(options,
-			otlptracehttp.WithInsecure(),
 			otlptracehttp.WithTLSClientConfig(&tls.Config{Certificates: []tls.Certificate{certificate}}),
 		)
 	} else {
@@ -50,7 +60,7 @@ func InitTracing(ctx context.Context, cfg *TracerConfig) (*trace.TracerProvider,
 		trace.WithBatcher(
 			traceExporter,
 			trace.WithMaxExportBatchSize(trace.DefaultMaxExportBatchSize),
-			trace.WithBatchTimeout(trace.DefaultScheduleDelay*time.Millisecond),
+			trace.WithBatchTimeout(trace.DefaultScheduleDelay),
 		),
 		trace.WithResource(
 			resource.NewWithAttributes(
@@ -60,5 +70,9 @@ func InitTracing(ctx context.Context, cfg *TracerConfig) (*trace.TracerProvider,
 		),
 	)
 	otel.SetTracerProvider(tracerProvider)
+	SetDefaultTracer(tracerProvider)
+	if cfg.ServiceName != "" {
+		SetDefaultServiceName(cfg.ServiceName)
+	}
 	return tracerProvider, tracerProvider.Shutdown, nil
 }

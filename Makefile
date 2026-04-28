@@ -36,6 +36,14 @@ dependup:
 generate-api: .load-proto-bins .deps
 	./scripts/genproto.sh
 
+.PHONY: test-pkg
+test-pkg:
+	go test ./pkg/... -count=1
+
+.PHONY: mocks
+mocks:
+	go test ./pkg/mocks -count=1
+
 
 # --------------------GENERATE-TLS-CERTIFICATE
 .PHONY:gen-tls-ca
