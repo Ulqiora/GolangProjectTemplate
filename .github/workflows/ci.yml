@@ -218,17 +218,55 @@ jobs:
 
       - name: Apply ClickHouse migrations
         run: |
-          for migration in migrations/clickhouse/*.sql; do
-            echo "Applying ${migration}"
-            curl -fsS --data-binary @"${migration}" "http://localhost:8123/?multiquery=1"
-          done
+          python3 <<'PY'
+          import pathlib
+          import urllib.error
+          import urllib.request
+
+          def apply_sql(path: pathlib.Path) -> None:
+              sql = path.read_text()
+              for index, statement in enumerate(part.strip() for part in sql.split(";") if part.strip()):
+                  print(f"Applying {path} statement {index + 1}", flush=True)
+                  request = urllib.request.Request(
+                      "http://localhost:8123/",
+                      data=(statement + ";").encode(),
+                      method="POST",
+                  )
+                  try:
+                      urllib.request.urlopen(request, timeout=30).read()
+                  except urllib.error.HTTPError as err:
+                      print(err.read().decode(), flush=True)
+                      raise
+
+          for migration in sorted(pathlib.Path("migrations/clickhouse").glob("*.sql")):
+              apply_sql(migration)
+          PY
 
       - name: Re-apply ClickHouse migrations
         run: |
-          for migration in migrations/clickhouse/*.sql; do
-            echo "Re-applying ${migration}"
-            curl -fsS --data-binary @"${migration}" "http://localhost:8123/?multiquery=1"
-          done
+          python3 <<'PY'
+          import pathlib
+          import urllib.error
+          import urllib.request
+
+          def apply_sql(path: pathlib.Path) -> None:
+              sql = path.read_text()
+              for index, statement in enumerate(part.strip() for part in sql.split(";") if part.strip()):
+                  print(f"Re-applying {path} statement {index + 1}", flush=True)
+                  request = urllib.request.Request(
+                      "http://localhost:8123/",
+                      data=(statement + ";").encode(),
+                      method="POST",
+                  )
+                  try:
+                      urllib.request.urlopen(request, timeout=30).read()
+                  except urllib.error.HTTPError as err:
+                      print(err.read().decode(), flush=True)
+                      raise
+
+          for migration in sorted(pathlib.Path("migrations/clickhouse").glob("*.sql")):
+              apply_sql(migration)
+          PY
 
   manifests:
     name: Manifests And Compose
