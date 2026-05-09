@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Anime Aura - авторизация</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero" aria-label="Anime Aura">
+        <div class="hero-media" aria-hidden="true"></div>
+        <div class="hero-overlay" aria-hidden="true"></div>
+
+        <div class="hero-content">
+          <header class="topbar">
+            <a class="logo" href="/" aria-label="Anime Aura">
+              <span class="logo-mark">AA</span>
+              <span>Anime Aura</span>
+            </a>
+            <div class="topbar-badge">Auth gateway</div>
+          </header>
+
+          <div class="copy">
+            <p class="eyebrow">Личный кабинет зрителя</p>
+            <h1>Вход в мир аниме без лишних шагов</h1>
+            <p class="lead">
+              Авторизуйся, чтобы продолжить просмотр, хранить токены сессии и подключать аккаунт через Яндекс ID.
+            </p>
+            <div class="stats" aria-label="Возможности">
+              <div>
+                <strong>JWT</strong>
+                <span>быстрый доступ</span>
+              </div>
+              <div>
+                <strong>Yandex ID</strong>
+                <span>OAuth вход</span>
+              </div>
+              <div>
+                <strong>API</strong>
+                <span>gRPC Gateway</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="auth-card" aria-label="Авторизация">
+          <div class="card-head">
+            <div>
+              <p class="eyebrow">Добро пожаловать</p>
+              <h2>Аккаунт</h2>
+            </div>
+            <span class="spark">+</span>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Способ входа">
+            <button class="tab active" id="login-tab" type="button" data-view="login">Вход</button>
+            <button class="tab" id="register-tab" type="button" data-view="register">Регистрация</button>
+          </div>
+
+          <form class="form active" id="login-form" data-view="login">
+            <label>
+              <span>Логин или email</span>
+              <input name="identifier" autocomplete="username" placeholder="akira@example.com" required>
+            </label>
+            <label>
+              <span>Пароль</span>
+              <input name="password" type="password" autocomplete="current-password" placeholder="минимум 8 символов" required>
+            </label>
+            <button class="primary" type="submit">Продолжить просмотр</button>
+          </form>
+
+          <form class="form" id="register-form" data-view="register">
+            <div class="grid-two">
+              <label>
+                <span>Имя</span>
+                <input name="firstName" autocomplete="given-name" placeholder="Акира" required>
+              </label>
+              <label>
+                <span>Фамилия</span>
+                <input name="lastName" autocomplete="family-name" placeholder="Сато" required>
+              </label>
+            </div>
+            <label>
+              <span>Логин</span>
+              <input name="login" autocomplete="username" placeholder="anime_fan" required maxlength="64">
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </label>
+            <label>
+              <span>Пароль</span>
+              <input name="password" type="password" autocomplete="new-password" placeholder="минимум 8 символов" required minlength="8">
+            </label>
+            <button class="primary" type="submit">Создать профиль</button>
+          </form>
+
+          <div class="divider"><span>или</span></div>
+          <button class="yandex" id="yandex-login" type="button">
+            <span class="ya-dot">Я</span>
+            Войти через Яндекс ID
+          </button>
+          <p class="message" id="message" role="status" aria-live="polite"></p>
+        </aside>
+      </section>
+
+      <section class="session-section" aria-label="Сессия">
+        <div class="session-layout">
+          <div>
+            <p class="eyebrow">После авторизации</p>
+            <h2 id="session-title">Нет активного входа</h2>
+            <p class="session-copy">
+              Здесь отображается текущий пользователь, провайдер входа и токен доступа для интеграционной проверки API.
+            </p>
+          </div>
+
+          <div class="session-card">
+            <div class="session-actions">
+              <span class="status-pill">Сессия</span>
+              <button class="ghost hidden" id="logout" type="button">Выйти</button>
+            </div>
+            <div class="profile-card" id="profile-card">
+              <div class="empty-state">
+                Войдите через пароль или Яндекс ID, чтобы увидеть данные сессии.
+              </div>
+            </div>
+            <div class="token-box">
+              <div class="token-title">Access token</div>
+              <pre id="token-preview">-</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="anime-section" aria-label="Каталог аниме">
+        <div class="anime-head">
+          <div>
+            <p class="eyebrow">Каталог</p>
+            <h2>Что смотреть после входа</h2>
+            <p class="anime-copy">
+              Поиск и популярные тайтлы подтягиваются из открытого Jikan API по базе MyAnimeList.
+            </p>
+          </div>
+          <form class="anime-search" id="anime-search">
+            <label>
+              <span>Найти аниме</span>
+              <input name="query" placeholder="Например: Naruto, Frieren, One Piece">
+            </label>
+            <button class="primary" type="submit">Искать</button>
+          </form>
+        </div>
+
+        <div class="anime-toolbar">
+          <button class="filter active" type="button" data-mode="top">Популярное</button>
+          <button class="filter" type="button" data-mode="airing">Сейчас выходит</button>
+          <button class="filter" type="button" data-mode="upcoming">Скоро</button>
+        </div>
+
+        <p class="anime-status" id="anime-status" role="status" aria-live="polite"></p>
+        <div class="anime-grid" id="anime-grid"></div>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

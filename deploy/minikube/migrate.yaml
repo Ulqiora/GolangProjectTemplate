@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: auth-local
+spec:
+  backoffLimit: 4
+  template:
+    metadata:
+      labels:
+        app: migrate
+    spec:
+      enableServiceLinks: false
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: postgres
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              value: postgres
+            - name: PGPASSWORD
+              value: postgres
+            - name: PGDATABASE
+              value: postgres
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready; do
+                echo "Waiting for database..."
+                sleep 2
+              done
+
+              for migration in /migrations/postgres/*.sql; do
+                echo "Applying ${migration}"
+                awk '/-- \+goose Down/{exit} seen{print} /-- \+goose Up/{seen=1}' "${migration}" | psql -v ON_ERROR_STOP=1
+              done
+          volumeMounts:
+            - name: migrations
+              mountPath: /migrations/postgres
+              readOnly: true
+      volumes:
+        - name: migrations
+          configMap:
+            name: migrations

@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vk-consumer
+  namespace: auth-local
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vk-consumer
+  template:
+    metadata:
+      labels:
+        app: vk-consumer
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: vk-consumer
+          image: auth-service:local
+          imagePullPolicy: Never
+          command:
+            - /app/vk-consumer
+          args:
+            - /app/configs/auth/docker.yaml

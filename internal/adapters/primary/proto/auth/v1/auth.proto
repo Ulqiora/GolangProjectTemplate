@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package auth.v1;
+
+option go_package = "GolangTemplateProject/internal/adapters/primary/generated/auth/v1;authv1";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "validate/validate.proto";
+
+service AuthService {
+  rpc Register(RegisterRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/register"
+      body: "*"
+    };
+  }
+
+  rpc Login(LoginRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/login"
+      body: "*"
+    };
+  }
+
+  rpc GetYandexAuthURL(GetYandexAuthURLRequest) returns (GetYandexAuthURLResponse) {
+    option (google.api.http) = {
+      get: "/v1/auth/yandex/url"
+    };
+  }
+
+  rpc CompleteYandexLogin(CompleteYandexLoginRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/v1/auth/yandex/complete"
+      body: "*"
+    };
+  }
+}
+
+message RegisterRequest {
+  string login = 1 [(validate.rules).string = {min_len: 1, max_len: 64}];
+  string email = 2 [(validate.rules).string = {min_len: 1, email: true, max_len: 254}];
+  string password = 3 [(validate.rules).string = {min_len: 8, max_len: 128}];
+  string first_name = 4 [(validate.rules).string = {min_len: 1, max_len: 128}];
+  string last_name = 5 [(validate.rules).string = {min_len: 1, max_len: 128}];
+}
+
+message LoginRequest {
+  string identifier = 1 [(validate.rules).string = {min_len: 1, max_len: 254}];
+  string password = 2 [(validate.rules).string = {min_len: 1, max_len: 128}];
+}
+
+message GetYandexAuthURLRequest {}
+
+message GetYandexAuthURLResponse {
+  string authorization_url = 1;
+}
+
+message CompleteYandexLoginRequest {
+  string code = 1 [(validate.rules).string = {min_len: 1, max_len: 4096}];
+  string state = 2 [(validate.rules).string = {min_len: 1, max_len: 4096}];
+}
+
+message AuthResponse {
+  string user_id = 1;
+  string access_token = 2;
+  string refresh_token = 3;
+  string provider = 4;
+  google.protobuf.Timestamp created_at = 5;
+}

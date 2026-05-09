@@ -1,0 +1,777 @@
+:root {
+  color-scheme: dark;
+  --ink: #080b16;
+  --ink-soft: #101525;
+  --panel: rgba(13, 18, 34, 0.74);
+  --panel-solid: #111827;
+  --glass: rgba(255, 255, 255, 0.1);
+  --text: #f8fbff;
+  --muted: #aab6c8;
+  --line: rgba(255, 255, 255, 0.16);
+  --cyan: #52d6ff;
+  --rose: #ff667f;
+  --gold: #ffd166;
+  --violet: #9c7cff;
+  --danger: #ff8a7a;
+  --success: #8df0bd;
+  --shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--ink);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.hero {
+  position: relative;
+  min-height: 86vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
+  gap: 40px;
+  align-items: center;
+  padding: 28px max(24px, calc((100vw - 1180px) / 2)) 54px;
+}
+
+.hero-media,
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.hero-media {
+  background-image: url("/anime-hero.png");
+  background-position: center;
+  background-size: cover;
+  transform: scale(1.02);
+}
+
+.hero-overlay {
+  background:
+    radial-gradient(circle at 80% 22%, rgba(82, 214, 255, 0.2), transparent 25%),
+    radial-gradient(circle at 70% 78%, rgba(255, 102, 127, 0.18), transparent 27%),
+    linear-gradient(90deg, rgba(8, 11, 22, 0.94) 0%, rgba(8, 11, 22, 0.78) 38%, rgba(8, 11, 22, 0.3) 72%, rgba(8, 11, 22, 0.74) 100%),
+    linear-gradient(180deg, rgba(8, 11, 22, 0.24), var(--ink) 100%);
+}
+
+.hero-content,
+.auth-card {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-content {
+  min-height: calc(86vh - 82px);
+  display: grid;
+  align-content: space-between;
+  gap: 42px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.logo-mark {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 8px;
+  color: #07111f;
+  background: linear-gradient(135deg, var(--cyan), var(--gold));
+  box-shadow: 0 12px 40px rgba(82, 214, 255, 0.2);
+}
+
+.topbar-badge,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+  font-weight: 800;
+  backdrop-filter: blur(14px);
+}
+
+.copy {
+  max-width: 710px;
+  padding: 48px 0;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+h1 {
+  max-width: 760px;
+  font-size: clamp(48px, 7vw, 92px);
+  line-height: 0.9;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: 30px;
+  line-height: 1.08;
+}
+
+.lead {
+  max-width: 560px;
+  margin: 24px 0 0;
+  color: #dce6f7;
+  font-size: 18px;
+  line-height: 1.7;
+}
+
+.stats {
+  width: min(610px, 100%);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.stats div {
+  min-height: 92px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.stats strong,
+.stats span {
+  display: block;
+}
+
+.stats strong {
+  color: var(--text);
+  font-size: 17px;
+}
+
+.stats span {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.auth-card,
+.session-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(18, 24, 43, 0.82), rgba(9, 13, 26, 0.78));
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(24px);
+}
+
+.auth-card {
+  padding: 24px;
+}
+
+.card-head,
+.session-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.spark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--ink);
+  background: var(--gold);
+  font-size: 25px;
+  font-weight: 900;
+  box-shadow: 0 0 32px rgba(255, 209, 102, 0.34);
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 22px 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.tab,
+.ghost {
+  border: 0;
+  cursor: pointer;
+  color: var(--muted);
+  background: transparent;
+}
+
+.tab {
+  min-height: 42px;
+  border-radius: 7px;
+  font-weight: 900;
+}
+
+.tab.active {
+  color: var(--ink);
+  background: linear-gradient(135deg, var(--cyan), #e7fbff);
+  box-shadow: 0 12px 34px rgba(82, 214, 255, 0.18);
+}
+
+.form {
+  display: none;
+  gap: 14px;
+}
+
+.form.active {
+  display: grid;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  color: #cfdaea;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+input {
+  width: 100%;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 0 14px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.09);
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+input::placeholder {
+  color: rgba(220, 230, 247, 0.45);
+}
+
+input:focus {
+  border-color: var(--cyan);
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 0 0 4px rgba(82, 214, 255, 0.14);
+}
+
+.primary,
+.yandex,
+.ghost {
+  min-height: 48px;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.primary {
+  margin-top: 4px;
+  border: 0;
+  color: #07111f;
+  background: linear-gradient(135deg, var(--cyan), var(--gold));
+  cursor: pointer;
+  box-shadow: 0 18px 44px rgba(82, 214, 255, 0.18);
+}
+
+.primary:hover {
+  filter: brightness(1.05);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: var(--line);
+}
+
+.yandex {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.09);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.yandex:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ya-dot {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #fc3f1d;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.message {
+  min-height: 22px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.message.success {
+  color: var(--success);
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+.session-section,
+.anime-section {
+  position: relative;
+  padding: 70px max(24px, calc((100vw - 1180px) / 2)) 84px;
+}
+
+.session-section {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(156, 124, 255, 0.18), transparent 24%),
+    radial-gradient(circle at 86% 26%, rgba(82, 214, 255, 0.14), transparent 30%),
+    var(--ink);
+}
+
+.session-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr);
+  gap: 30px;
+  align-items: start;
+}
+
+.session-copy {
+  max-width: 420px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.anime-section {
+  background:
+    linear-gradient(180deg, #0a0f1b, #111422),
+    var(--ink);
+}
+
+.anime-head {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(300px, 440px);
+  gap: 24px;
+  align-items: end;
+}
+
+.anime-copy {
+  max-width: 560px;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.anime-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.anime-search .primary {
+  min-width: 112px;
+  margin: 0;
+  padding: 0 18px;
+}
+
+.anime-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 30px 0 18px;
+}
+
+.filter {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.filter.active,
+.filter:hover {
+  color: #07111f;
+  border-color: transparent;
+  background: var(--cyan);
+}
+
+.anime-status {
+  min-height: 24px;
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.anime-status.error {
+  color: var(--danger);
+}
+
+.anime-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.anime-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+}
+
+.anime-poster {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  background: #151b2b;
+}
+
+.anime-poster img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.anime-score {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #07111f;
+  background: var(--gold);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.anime-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.anime-title {
+  min-height: 48px;
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.anime-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.anime-meta span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.anime-synopsis {
+  min-height: 68px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.anime-link {
+  color: var(--cyan);
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.anime-link:hover {
+  text-decoration: underline;
+}
+
+.session-card {
+  padding: 22px;
+}
+
+.ghost {
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ghost:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.profile-card {
+  min-height: 190px;
+  margin-top: 18px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 18px;
+}
+
+.empty-state {
+  height: 152px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.profile-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.profile-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-label {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.profile-value {
+  overflow-wrap: anywhere;
+}
+
+.token-box {
+  margin-top: 18px;
+  border-radius: 8px;
+  background: rgba(3, 7, 18, 0.9);
+  color: #c9d7e3;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.token-title {
+  padding: 12px 14px;
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+pre {
+  min-height: 116px;
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.hidden {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .hero {
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .hero-content {
+    min-height: 0;
+  }
+
+  .copy {
+    padding: 54px 0 0;
+  }
+
+  .auth-card {
+    max-width: 520px;
+  }
+
+  .session-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .anime-head {
+    grid-template-columns: 1fr;
+  }
+
+  .anime-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding: 18px 14px 36px;
+  }
+
+  .hero-overlay {
+    background:
+      linear-gradient(180deg, rgba(8, 11, 22, 0.8), rgba(8, 11, 22, 0.84) 48%, var(--ink) 100%),
+      radial-gradient(circle at 68% 28%, rgba(82, 214, 255, 0.18), transparent 34%);
+  }
+
+  .topbar-badge {
+    display: none;
+  }
+
+  .copy {
+    padding-top: 34px;
+  }
+
+  .lead {
+    font-size: 16px;
+  }
+
+  .stats,
+  .grid-two,
+  .profile-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stats div {
+    min-height: 74px;
+  }
+
+  .auth-card,
+  .session-card {
+    padding: 18px;
+  }
+
+  .session-section {
+    padding: 52px 14px 64px;
+  }
+
+  .anime-section {
+    padding: 52px 14px 64px;
+  }
+
+  .anime-search {
+    grid-template-columns: 1fr;
+  }
+
+  .anime-grid {
+    grid-template-columns: 1fr;
+  }
+}

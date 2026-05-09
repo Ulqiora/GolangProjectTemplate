@@ -1,0 +1,78 @@
+env: Dev
+service_name: auth-service
+
+database:
+  postgres:
+    master:
+      host: localhost
+      port: "5435"
+      user: postgres
+      password: postgres
+      database: postgres
+      ssl_mode: disable
+      settings:
+        max_open_connections: 20
+        conn_max_lifetime: 300
+        max_idle_connections: 5
+        conn_idle_time: 60
+
+tracing:
+  endpoint: localhost:4318
+  service_name: auth-service
+  timeout: 10
+
+auth:
+  jwt:
+    secret_key: local-auth-secret-key-change-me
+    access_ttl_seconds: 900
+    refresh_ttl_seconds: 604800
+  bcrypt:
+    cost: 10
+
+auth_service:
+  server:
+    grpc:
+      host: 0.0.0.0
+      port: 10000
+    proxy:
+      enabled: true
+      host: 0.0.0.0
+      port: 10001
+  observability:
+    metrics:
+      enabled: true
+      host: 0.0.0.0
+      port: 9090
+    profiler:
+      enabled: true
+      host: 0.0.0.0
+      port: 6060
+  yandex_id:
+    client_id: ""
+    client_secret: ""
+    redirect_uri: "http://localhost:10001/yandex/callback"
+    scopes: ["login:email", "login:info"]
+  kafka_producer:
+    topic: users.created
+    brokers: ["localhost:9092"]
+    compression_type: 1
+    schema_registry:
+      url: "http://localhost:8081"
+      subject: "users.created-value"
+    network:
+      sasl:
+        enable: false
+      tls:
+        enabled: false
+    produce-settings:
+      required_acks: -1
+      idempotency_key: true
+      save_returning_status:
+        errors: true
+        succeeded: true
+  vk_user_consumer:
+    enabled: true
+    topic: users.vk.created
+    brokers: ["localhost:9092"]
+    group_id: auth-vk-user-consumer
+    offset_initial: old

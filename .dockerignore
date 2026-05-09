@@ -1,0 +1,7 @@
+.git
+.idea
+builds
+vendor/*/.git
+deployment/zookeeper/data
+**/*.test
+**/.DS_Store
