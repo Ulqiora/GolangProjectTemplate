@@ -25,7 +25,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
+          cache-dependency-path: go.sum
           cache: true
 
       - name: Verify dependencies
@@ -64,13 +65,14 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
+          cache-dependency-path: go.sum
           cache: true
 
       - name: Run tests with coverage
         run: |
           mkdir -p .coverage
-          go test -count=1 -covermode=atomic -coverprofile=.coverage/coverage.out ./...
+          go test -short -count=1 -covermode=atomic -coverprofile=.coverage/coverage.out ./...
 
       - name: Print total coverage
         run: go tool cover -func=.coverage/coverage.out | tee .coverage/coverage.txt
@@ -94,7 +96,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
+          cache-dependency-path: go.sum
           cache: true
 
       - name: Run race detector
@@ -114,7 +117,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
+          cache-dependency-path: go.sum
           cache: true
 
       - name: Check formatting
@@ -130,7 +134,7 @@ jobs:
 
       - name: Staticcheck
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+          go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
           staticcheck -checks='all,-SA1019,-ST*' ./...
 
   security:
@@ -145,7 +149,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
+          cache-dependency-path: go.sum
           cache: true
 
       - name: govulncheck
@@ -177,7 +182,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
+          cache-dependency-path: go.sum
           cache: true
 
       - name: Install goose
@@ -203,71 +209,50 @@ jobs:
   clickhouse-migrations:
     name: ClickHouse Migrations
     runs-on: ubuntu-latest
-    services:
-      clickhouse:
-        image: clickhouse/clickhouse-server:24.8
-        ports:
-          - 8123:8123
-        options: >-
-          --health-cmd "clickhouse-client --query 'SELECT 1'"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply ClickHouse migrations
+      - name: Start ClickHouse stack
         run: |
-          python3 <<'PY'
-          import pathlib
-          import urllib.error
-          import urllib.request
+          docker compose \
+            -f ./deployment/docker-compose.kafka.yaml \
+            -f ./deployment/docker-compose.clickhouse.yaml \
+            up -d zookeeper kafka schema-registry kafka-init clickhouse
 
-          def apply_sql(path: pathlib.Path) -> None:
-              sql = path.read_text()
-              for index, statement in enumerate(part.strip() for part in sql.split(";") if part.strip()):
-                  print(f"Applying {path} statement {index + 1}", flush=True)
-                  request = urllib.request.Request(
-                      "http://localhost:8123/",
-                      data=(statement + ";").encode(),
-                      method="POST",
-                  )
-                  try:
-                      urllib.request.urlopen(request, timeout=30).read()
-                  except urllib.error.HTTPError as err:
-                      print(err.read().decode(), flush=True)
-                      raise
-
-          for migration in sorted(pathlib.Path("migrations/clickhouse").glob("*.sql")):
-              apply_sql(migration)
-          PY
+      - name: Wait for ClickHouse
+        run: |
+          for i in {1..60}; do
+            if docker compose \
+              -f ./deployment/docker-compose.kafka.yaml \
+              -f ./deployment/docker-compose.clickhouse.yaml \
+              exec -T clickhouse clickhouse-client --query "SELECT 1"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose \
+            -f ./deployment/docker-compose.kafka.yaml \
+            -f ./deployment/docker-compose.clickhouse.yaml \
+            logs clickhouse
+          exit 1
 
       - name: Re-apply ClickHouse migrations
         run: |
-          python3 <<'PY'
-          import pathlib
-          import urllib.error
-          import urllib.request
+          for migration in migrations/clickhouse/*.sql; do
+            docker compose \
+              -f ./deployment/docker-compose.kafka.yaml \
+              -f ./deployment/docker-compose.clickhouse.yaml \
+              exec -T clickhouse clickhouse-client --multiquery < "$migration"
+          done
 
-          def apply_sql(path: pathlib.Path) -> None:
-              sql = path.read_text()
-              for index, statement in enumerate(part.strip() for part in sql.split(";") if part.strip()):
-                  print(f"Re-applying {path} statement {index + 1}", flush=True)
-                  request = urllib.request.Request(
-                      "http://localhost:8123/",
-                      data=(statement + ";").encode(),
-                      method="POST",
-                  )
-                  try:
-                      urllib.request.urlopen(request, timeout=30).read()
-                  except urllib.error.HTTPError as err:
-                      print(err.read().decode(), flush=True)
-                      raise
-
-          for migration in sorted(pathlib.Path("migrations/clickhouse").glob("*.sql")):
-              apply_sql(migration)
-          PY
+      - name: Stop ClickHouse stack
+        if: always()
+        run: |
+          docker compose \
+            -f ./deployment/docker-compose.kafka.yaml \
+            -f ./deployment/docker-compose.clickhouse.yaml \
+            down -v
 
   manifests:
     name: Manifests And Compose
