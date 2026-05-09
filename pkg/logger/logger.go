@@ -217,6 +217,7 @@ func NewLogger(env Env, tracer trace.Tracer) (Logger, error) {
 func envTologger(env Env) (*zap.Logger, error) {
 	switch env {
 	case EnvDev:
+		return zap.NewDevelopment()
 	case EnvStage:
 		return zap.NewDevelopment()
 	case EnvProd:

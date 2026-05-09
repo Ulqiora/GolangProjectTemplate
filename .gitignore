@@ -1,2 +1,52 @@
-builds/*
-third_party/*
+# IDE/editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local environment
+.env
+.env.*
+!.env.example
+*.local
+
+# Go build/test artifacts
+/builds/
+/bin/
+/dist/
+/tmp/
+*.test
+*.out
+*.prof
+coverage.*
+*.coverprofile
+cpu.pprof
+mem.pprof
+trace.out
+
+# Generated/local binaries
+/auth
+/outbox
+/vk-consumer
+
+# Logs
+*.log
+logs/
+
+# Docker/compose local state
+.docker/
+docker-compose.override.yml
+
+# Kubernetes/minikube local artifacts
+.kube/
+.minikube/
+
+# Tool caches
+.cache/
+.pytest_cache/
+.golangci.yml.tmp
+
+# Project scratch space
+third_party/

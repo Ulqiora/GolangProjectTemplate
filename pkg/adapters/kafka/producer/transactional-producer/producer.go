@@ -21,9 +21,10 @@ type TopicProducer[T any] struct {
 	serializer producer.Serializer[T]
 	metrics    *producer.Metrics
 	pendingTx  atomic.Int64
+	options    producer.RuntimeOptions[T]
 }
 
-func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T]) (*TopicProducer[T], error) {
+func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T], opts ...producer.ProducerOption[T]) (*TopicProducer[T], error) {
 	if config.ProduceSettings.TransactionalID == "" {
 		return nil, producer.ErrTransactionalIDRequired
 	}
@@ -63,12 +64,15 @@ func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializ
 	)
 	producerLogger.Info(producer.LogTransactionalProducerConfigured)
 
+	resolvedOptions := producer.NewRuntimeOptions(opts...)
+
 	return &TopicProducer[T]{
 		topic:      cfg.Topic,
 		producer:   syncProducer,
 		logger:     producerLogger,
 		serializer: serializer,
-		metrics:    producer.ResolveProducerMetrics(),
+		metrics:    resolvedOptions.ResolveMetrics(),
+		options:    resolvedOptions,
 	}, nil
 }
 
@@ -90,6 +94,8 @@ func (t *TopicProducer[T]) sendProducerMessage(message *sarama.ProducerMessage) 
 			attribute.String("error", err.Error()),
 		)
 		t.metrics.ObserveOperation(producer.ProducerTypeTransactional, message.Topic, producer.OperationSendSingle, producer.StatusError, startedAt)
+		typedMessage, _ := producer.ExtractTypedMessage[T](message)
+		t.options.HandleError(producer.OperationSendSingle, message.Topic, typedMessage, err)
 		return fmt.Errorf("%w: %w", producer.ErrSendMessage, err)
 	}
 	t.logger.Debug(producer.LogProducerMessageSent, attribute.String("status", "success"))
@@ -107,6 +113,10 @@ func (t *TopicProducer[T]) sendProducerMessages(messages ...*sarama.ProducerMess
 			attribute.Int("messages_count", len(messages)),
 		)
 		t.metrics.ObserveOperation(producer.ProducerTypeTransactional, t.topic, producer.OperationSendBatch, producer.StatusError, startedAt)
+		for i := range messages {
+			typedMessage, _ := producer.ExtractTypedMessage[T](messages[i])
+			t.options.HandleError(producer.OperationSendBatch, messages[i].Topic, typedMessage, err)
+		}
 		return fmt.Errorf("%w: %w", producer.ErrSendMessages, err)
 	}
 	for i := range messages {
@@ -125,6 +135,7 @@ func (t *TopicProducer[T]) sendProducerMessages(messages ...*sarama.ProducerMess
 func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error {
 	producerMessage, err := producer.ToProducerMessage(t.topic, message, t.serializer)
 	if err != nil {
+		t.options.HandleError(producer.OperationSendSingle, t.topic, &message, err)
 		return err
 	}
 	return t.sendProducerMessage(producerMessage)
@@ -135,6 +146,7 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 	for i := range messages {
 		producerMessage, err := producer.ToProducerMessage(t.topic, messages[i], t.serializer)
 		if err != nil {
+			t.options.HandleError(producer.OperationSendBatch, t.topic, &messages[i], err)
 			return err
 		}
 		producerMessages = append(producerMessages, producerMessage)

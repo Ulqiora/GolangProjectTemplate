@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -42,7 +43,7 @@ func NewProxy(cfg ProxyConfig) *GrpcProxy {
 	return &GrpcProxy{
 		cfg:         cfg,
 		mux:         runtime.NewServeMux(),
-		dialOptions: []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())},
+		dialOptions: defaultProxyDialOptions(),
 		errCh:       make(chan error, 1),
 	}
 }
@@ -67,6 +68,7 @@ func (p *GrpcProxy) SetGRPCEndpoint(endpoint string) *GrpcProxy {
 
 func (p *GrpcProxy) SetDialOptions(opts ...grpc.DialOption) *GrpcProxy {
 	p.dialOptions = append([]grpc.DialOption(nil), opts...)
+	p.dialOptions = append(p.dialOptions, grpc.WithChainUnaryInterceptor(TraceUnaryClientInterceptor()))
 	return p
 }
 
@@ -123,7 +125,13 @@ func (p *GrpcProxy) Start(ctx context.Context) error {
 			}
 		}
 
-		handler := http.Handler(p.mux)
+		handler := otelhttp.NewHandler(
+			http.Handler(p.mux),
+			"grpc-gateway",
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return r.Method + " " + r.URL.Path
+			}),
+		)
 		if p.http == nil {
 			p.http = &http.Server{
 				ReadHeaderTimeout: 5 * time.Second,
@@ -144,6 +152,13 @@ func (p *GrpcProxy) Start(ctx context.Context) error {
 	})
 
 	return startErr
+}
+
+func defaultProxyDialOptions() []grpc.DialOption {
+	return []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(TraceUnaryClientInterceptor()),
+	}
 }
 
 func (p *GrpcProxy) Notify() <-chan error { return p.errCh }

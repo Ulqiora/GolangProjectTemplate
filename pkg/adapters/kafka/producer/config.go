@@ -16,9 +16,15 @@ type Config struct {
 	// Brokers - hosts of kafka brokers
 	Brokers []string `yaml:"brokers" `
 	// CompressionType must be equal [0,1,2,3,4]
-	CompressionType int8            `yaml:"compression_type"`
-	Network         Network         `yaml:"network"`
-	ProduceSettings ProduceSettings `yaml:"produce-settings"`
+	CompressionType int8                 `yaml:"compression_type"`
+	Network         Network              `yaml:"network"`
+	ProduceSettings ProduceSettings      `yaml:"produce-settings"`
+	SchemaRegistry  SchemaRegistryConfig `yaml:"schema_registry"`
+}
+
+type SchemaRegistryConfig struct {
+	URL     string `yaml:"url"`
+	Subject string `yaml:"subject"`
 }
 
 type ProduceSettings struct {

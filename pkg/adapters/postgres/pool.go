@@ -60,7 +60,7 @@ func NewWithOptions(ctx context.Context, cfg *Config, opts ...Option) (*Postgres
 
 	log.Info("Initializing postgres adapter")
 
-	masterPool, err := newPool(ctx, "master", cfg.Master, log)
+	masterPool, err := newPool(ctx, "master", cfg.Master, log, resolvedOpts)
 	if err != nil {
 		log.Error("Failed to initialize postgres master pool", attribute.String("error", err.Error()))
 		return nil, err
@@ -69,7 +69,7 @@ func NewWithOptions(ctx context.Context, cfg *Config, opts ...Option) (*Postgres
 	readOnlyCfg, readOnlyConfigured := cfg.readOnlyEndpoint()
 	readOnlyPool := masterPool
 	if readOnlyConfigured {
-		readOnlyPool, err = newPool(ctx, "read_only", readOnlyCfg, log)
+		readOnlyPool, err = newPool(ctx, "read_only", readOnlyCfg, log, resolvedOpts)
 		if err != nil {
 			masterPool.Close()
 			log.Error("Failed to initialize postgres read-only pool", attribute.String("error", err.Error()))
@@ -110,7 +110,7 @@ func (p *Postgres) RegisterMetrics(registerer prometheus.Registerer) error {
 	return registerPoolCollector(registerer, p.metrics)
 }
 
-func newPool(ctx context.Context, role string, cfg EndpointConfig, log logger.Logger) (*pgxpool.Pool, error) {
+func newPool(ctx context.Context, role string, cfg EndpointConfig, log logger.Logger, opts options) (*pgxpool.Pool, error) {
 	log.Debug("Creating postgres pool", endpointFields(role, cfg)...)
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.ConnectionString())
@@ -119,6 +119,9 @@ func newPool(ctx context.Context, role string, cfg EndpointConfig, log logger.Lo
 	}
 
 	applyPoolSettings(poolCfg, cfg.Settings)
+	if opts.tracingEnabled {
+		poolCfg.ConnConfig.Tracer = newPGXTracer(opts.tracerProvider, role, cfg)
+	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

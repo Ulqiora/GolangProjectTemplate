@@ -41,17 +41,18 @@ type Metrics struct {
 var (
 	defaultMetricsOnce sync.Once
 	defaultMetrics     *Metrics
+	noopMetrics        = &Metrics{}
 )
 
 func ResolveProducerMetrics() *Metrics {
 	defaultMetricsOnce.Do(func() {
-		defaultMetrics = newProducerMetrics(prometheus.DefaultRegisterer)
+		defaultMetrics = NewProducerMetrics(prometheus.DefaultRegisterer)
 	})
 
 	return defaultMetrics
 }
 
-func newProducerMetrics(registerer prometheus.Registerer) *Metrics {
+func NewProducerMetrics(registerer prometheus.Registerer) *Metrics {
 	return &Metrics{
 		operationsTotal: mustRegisterCounterVec(registerer, prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -98,24 +99,34 @@ func newProducerMetrics(registerer prometheus.Registerer) *Metrics {
 	}
 }
 
+func NoopProducerMetrics() *Metrics {
+	return noopMetrics
+}
+
 func (m *Metrics) ObserveOperation(producerType, topic, operation, status string, startedAt time.Time) {
+	if m == nil || m.operationsTotal == nil || m.operationDuration == nil {
+		return
+	}
 	m.operationsTotal.WithLabelValues(producerType, topic, operation, status).Inc()
 	m.operationDuration.WithLabelValues(producerType, topic, operation, status).Observe(time.Since(startedAt).Seconds())
 }
 
 func (m *Metrics) ObservePayload(producerType, topic string, bytes int) {
-	if bytes <= 0 {
+	if m == nil || m.payloadBytes == nil || bytes <= 0 {
 		return
 	}
 	m.payloadBytes.WithLabelValues(producerType, topic).Observe(float64(bytes))
 }
 
 func (m *Metrics) ObserveAsyncEvent(topic, event string) {
+	if m == nil || m.asyncEvents == nil {
+		return
+	}
 	m.asyncEvents.WithLabelValues(topic, event).Inc()
 }
 
 func (m *Metrics) ObserveMessages(producerType, topic, status string, count int) {
-	if count <= 0 {
+	if m == nil || m.messagesTotal == nil || count <= 0 {
 		return
 	}
 	m.messagesTotal.WithLabelValues(producerType, topic, status).Add(float64(count))

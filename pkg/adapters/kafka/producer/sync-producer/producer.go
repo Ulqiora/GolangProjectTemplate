@@ -19,9 +19,10 @@ type TopicProducer[T any] struct {
 	logger     logger.Logger
 	serializer producer.Serializer[T]
 	metrics    *producer.Metrics
+	options    producer.RuntimeOptions[T]
 }
 
-func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T]) (*TopicProducer[T], error) {
+func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T], opts ...producer.ProducerOption[T]) (*TopicProducer[T], error) {
 	cfg := config
 	cfg.ProduceSettings.SaveReturningStatus.Errors = true
 	cfg.ProduceSettings.SaveReturningStatus.Succeeded = true
@@ -51,12 +52,15 @@ func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializ
 	)
 	producerLogger.Info(producer.LogProducerConfigured)
 
+	resolvedOptions := producer.NewRuntimeOptions(opts...)
+
 	return &TopicProducer[T]{
 		topic:      cfg.Topic,
 		producer:   syncProducer,
 		logger:     producerLogger,
 		serializer: serializer,
-		metrics:    producer.ResolveProducerMetrics(),
+		metrics:    resolvedOptions.ResolveMetrics(),
+		options:    resolvedOptions,
 	}, nil
 }
 
@@ -73,6 +77,7 @@ func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error
 	producerMessage, err := producer.ToProducerMessage(t.topic, message, t.serializer)
 	if err != nil {
 		t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendSingle, producer.StatusError, startedAt)
+		t.options.HandleError(producer.OperationSendSingle, t.topic, &message, err)
 		return err
 	}
 	t.metrics.ObservePayload(producer.ProducerTypeSync, producerMessage.Topic, producer.MessagePayloadSize(producerMessage))
@@ -83,6 +88,7 @@ func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error
 			attribute.String("error", err.Error()),
 		)
 		t.metrics.ObserveOperation(producer.ProducerTypeSync, producerMessage.Topic, producer.OperationSendSingle, producer.StatusError, startedAt)
+		t.options.HandleError(producer.OperationSendSingle, producerMessage.Topic, &message, err)
 		return fmt.Errorf("%w: %w", producer.ErrSendMessage, err)
 	}
 	t.logger.Debug(producer.LogProducerMessageSent, attribute.String("status", "success"))
@@ -98,6 +104,7 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 		message, err := producer.ToProducerMessage(t.topic, messages[i], t.serializer)
 		if err != nil {
 			t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendBatch, producer.StatusError, startedAt)
+			t.options.HandleError(producer.OperationSendBatch, t.topic, &messages[i], err)
 			return err
 		}
 		producerMessages = append(producerMessages, message)
@@ -111,6 +118,9 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 			attribute.Int("messages_count", len(producerMessages)),
 		)
 		t.metrics.ObserveOperation(producer.ProducerTypeSync, t.topic, producer.OperationSendBatch, producer.StatusError, startedAt)
+		for i := range messages {
+			t.options.HandleError(producer.OperationSendBatch, producerMessages[i].Topic, &messages[i], err)
+		}
 		return fmt.Errorf("%w: %w", producer.ErrSendMessages, err)
 	}
 	t.logger.Debug(

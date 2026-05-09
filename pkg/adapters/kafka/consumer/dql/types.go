@@ -4,13 +4,18 @@ import (
 	"context"
 	"time"
 
-	"GolangTemplateProject/internal/ports"
 	"github.com/IBM/sarama"
 )
 
 type BaseDqlConsumerModel interface {
-	ports.BaseModel
+	RepositoryModel
 	MessageObject
+}
+
+type RepositoryModel interface {
+	Params() map[string]interface{}
+	Fields() []string
+	PrimaryKey() (string, any)
 }
 
 type ExecDomainFunc[T MessageObject] func(ctx context.Context, object T, values *MapValues) error

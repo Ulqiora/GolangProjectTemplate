@@ -1,17 +1,38 @@
-version: "3.7"
-
 services:
-  project:
-    restart: always
+  auth:
     build:
-      context: ./..
-      dockerfile: deployment/outbox/Dockerfile
-      args:
-        PROJECT: outbox
+      context: ..
+      dockerfile: deployment/auth/Dockerfile
+    command: ["/app/configs/auth/docker.yaml"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      jaeger:
+        condition: service_started
     ports:
+      - "10000:10000"
       - "10001:10001"
+      - "9090:9090"
+      - "6060:6060"
 
-networks:
-  default:
-    external: true
-    name: MYSERVICE
+  vk-consumer:
+    build:
+      context: ..
+      dockerfile: deployment/auth/Dockerfile
+    entrypoint: ["/app/vk-consumer"]
+    command: ["/app/configs/auth/docker.yaml"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
+      schema-registry:
+        condition: service_started

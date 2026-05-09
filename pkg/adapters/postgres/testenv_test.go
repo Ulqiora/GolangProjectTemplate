@@ -94,6 +94,12 @@ func newFunctionalPostgres(t *testing.T, ctx context.Context, registry prometheu
 func startTestPostgresEnv(t *testing.T, ctx context.Context) *testPostgresEnv {
 	t.Helper()
 
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			t.Skipf("postgres test container is unavailable: %v", recovered)
+		}
+	}()
+
 	log := newTestLogger(t)
 	req := tc.GenericContainerRequest{
 		Started: true,
@@ -111,6 +117,9 @@ func startTestPostgresEnv(t *testing.T, ctx context.Context) *testPostgresEnv {
 	}
 
 	container, err := tc.GenericContainer(ctx, req)
+	if err != nil {
+		t.Skipf("postgres test container is unavailable: %v", err)
+	}
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, container.Terminate(context.Background()))

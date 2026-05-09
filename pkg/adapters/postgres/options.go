@@ -5,6 +5,8 @@ import (
 
 	"GolangTemplateProject/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var ErrNilConfig = errors.New("postgres config is nil")
@@ -12,9 +14,13 @@ var ErrNilConfig = errors.New("postgres config is nil")
 type Option func(*options)
 
 type options struct {
-	log        logger.Logger
-	registerer prometheus.Registerer
+	log            logger.Logger
+	registerer     prometheus.Registerer
+	tracingEnabled bool
+	tracerProvider trace.TracerProvider
 }
+
+type TracingOption func(*options)
 
 func WithLogger(log logger.Logger) Option {
 	return func(opts *options) {
@@ -28,10 +34,31 @@ func WithRegisterer(registerer prometheus.Registerer) Option {
 	}
 }
 
+func WithTracing(traceOpts ...TracingOption) Option {
+	return func(opts *options) {
+		opts.tracingEnabled = true
+		opts.tracerProvider = otel.GetTracerProvider()
+		for _, traceOpt := range traceOpts {
+			if traceOpt != nil {
+				traceOpt(opts)
+			}
+		}
+	}
+}
+
+func WithTracerProvider(provider trace.TracerProvider) TracingOption {
+	return func(opts *options) {
+		if provider != nil {
+			opts.tracerProvider = provider
+		}
+	}
+}
+
 func buildOptions(opts ...Option) options {
 	resolved := options{
-		log:        resolveLogger(nil),
-		registerer: prometheus.DefaultRegisterer,
+		log:            resolveLogger(nil),
+		registerer:     prometheus.DefaultRegisterer,
+		tracerProvider: otel.GetTracerProvider(),
 	}
 
 	for _, opt := range opts {

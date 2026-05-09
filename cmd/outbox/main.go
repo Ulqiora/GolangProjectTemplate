@@ -2,19 +2,26 @@ package main
 
 import (
 	"context"
-	"log/slog"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"GolangTemplateProject/internal/app/outbox"
+	"GolangTemplateProject/internal/app/authsvc"
+	"GolangTemplateProject/internal/app/outboxsvc"
 )
 
 func main() {
-	var ctx = context.Background()
-	application, err := outbox.NewApplication(ctx)
+	configPath := authsvc.ResolveConfigPath(os.Args)
+	application, err := outboxsvc.New(configPath)
 	if err != nil {
-		slog.Error(err.Error())
+		log.Fatal(err)
 	}
-	if err = application.SetupDependencies(ctx); err != nil {
-		slog.Error(err.Error())
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err = application.Run(ctx); err != nil && err != context.Canceled {
+		log.Fatal(err)
 	}
-	application.Start()
 }

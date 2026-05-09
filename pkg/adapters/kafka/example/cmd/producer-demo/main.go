@@ -57,7 +57,19 @@ func main() {
 		},
 	}
 
-	txProducer, err := transactional_producer.NewTopicProducer[DemoEvent](cfg, log, nil)
+	txProducer, err := transactional_producer.NewTopicProducer[DemoEvent](
+		cfg,
+		log,
+		nil,
+		producer.WithErrorHandler[DemoEvent](func(ctx producer.ErrorContext[DemoEvent]) {
+			log.Error(
+				"Producer operation failed",
+				attribute.String("operation", ctx.Operation),
+				attribute.String("topic", ctx.Topic),
+				attribute.String("error", ctx.Err.Error()),
+			)
+		}),
+	)
 	if err != nil {
 		panic(err)
 	}

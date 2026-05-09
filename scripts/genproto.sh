@@ -31,9 +31,17 @@ function gen_source {
 
     local protoc_dir=${PROTOC_ROOT_DIR}/${platform}
     local protoc_bin=${protoc_dir}/bin/protoc
+    local protoc_gen_validate=$(command -v protoc-gen-validate)
+
+    if [[ -z "${protoc_gen_validate}" ]]; then
+        echo "protoc-gen-validate not found in PATH" >&2
+        exit 1
+    fi
 
     "${protoc_bin}" \
         -I="${SRC_DIR}" "${src}"\
+        -I="${PWD}/builds/proto/$(get_platform)/include" \
+        -I="${PWD}/vendor/github.com/envoyproxy/protoc-gen-validate" \
         --proto_path="${PROTOC_LIBS}" \
         --plugin="protoc-gen-go=${protoc_dir}/protoc-gen-go" \
           --go_out=${OUTPUT_DIR} \
@@ -43,7 +51,9 @@ function gen_source {
           --go-grpc_opt=paths=source_relative\
         --plugin="protoc-gen-grpc-gateway=${protoc_dir}/protoc-gen-grpc-gateway" \
           --grpc-gateway_out=${OUTPUT_DIR} \
-          --grpc-gateway_opt=paths=source_relative
+          --grpc-gateway_opt=paths=source_relative \
+        --plugin="protoc-gen-validate=${protoc_gen_validate}" \
+          --validate_out="lang=go,paths=source_relative:${OUTPUT_DIR}"
 }
 
 function main {

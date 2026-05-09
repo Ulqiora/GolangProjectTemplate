@@ -19,9 +19,10 @@ type TopicProducer[T any] struct {
 	serializer producer.Serializer[T]
 	logger     logger.Logger
 	metrics    *producer.Metrics
+	options    producer.RuntimeOptions[T]
 }
 
-func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T]) (*TopicProducer[T], error) {
+func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializer producer.Serializer[T], opts ...producer.ProducerOption[T]) (*TopicProducer[T], error) {
 	saramaConfig, err := producer.BuildProduceConfig(config)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", producer.ErrBuildSaramaConfig, err)
@@ -47,12 +48,15 @@ func NewTopicProducer[T any](config producer.Config, log logger.Logger, serializ
 	)
 	producerLogger.Info(producer.LogProducerConfigured)
 
+	resolvedOptions := producer.NewRuntimeOptions(opts...)
+
 	return &TopicProducer[T]{
 		topic:      config.Topic,
 		producer:   asyncProducer,
 		serializer: serializer,
 		logger:     producerLogger,
-		metrics:    producer.ResolveProducerMetrics(),
+		metrics:    resolvedOptions.ResolveMetrics(),
+		options:    resolvedOptions,
 	}, nil
 }
 
@@ -96,6 +100,8 @@ func (t *TopicProducer[T]) Run(ctx context.Context, group *sync.WaitGroup) error
 				t.metrics.ObserveAsyncEvent(topic, producer.StatusError)
 				t.metrics.ObserveOperation(producer.ProducerTypeAsync, topic, producer.OperationQueue, producer.StatusError, time.Now())
 				t.metrics.ObserveMessages(producer.ProducerTypeAsync, topic, producer.StatusError, 1)
+				typedMessage, _ := producer.ExtractTypedMessage[T](err.Msg)
+				t.options.HandleError(producer.OperationQueue, topic, typedMessage, err.Err)
 				t.logger.Error(
 					producer.LogAsyncProducerReturnedError,
 					attribute.String("error", err.Err.Error()),
@@ -136,6 +142,7 @@ func (t *TopicProducer[T]) SendTypedMessage(message kafka.TypedMessage[T]) error
 	producerMessage, err := producer.ToProducerMessage(t.topic, message, t.serializer)
 	if err != nil {
 		t.metrics.ObserveOperation(producer.ProducerTypeAsync, t.topic, producer.OperationQueue, producer.StatusError, startedAt)
+		t.options.HandleError(producer.OperationQueue, t.topic, &message, err)
 		return err
 	}
 	t.producer.Input() <- producerMessage
@@ -154,6 +161,7 @@ func (t *TopicProducer[T]) SendTypedMessages(messages ...kafka.TypedMessage[T]) 
 		producerMessage, err := producer.ToProducerMessage(t.topic, messages[i], t.serializer)
 		if err != nil {
 			t.metrics.ObserveOperation(producer.ProducerTypeAsync, topic, producer.OperationSendBatch, producer.StatusError, startedAt)
+			t.options.HandleError(producer.OperationSendBatch, topic, &messages[i], err)
 			return err
 		}
 		t.producer.Input() <- producerMessage

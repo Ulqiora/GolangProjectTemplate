@@ -14,6 +14,10 @@ type Marshaler interface {
 
 type Serializer[T any] func(value T) ([]byte, error)
 
+type producerMessageMetadata[T any] struct {
+	typedMessage kafka.TypedMessage[T]
+}
+
 func DefaultSerializer[T any](value T) ([]byte, error) {
 	if marshalValue, ok := any(value).(Marshaler); ok {
 		return marshalValue.Marshal()
@@ -30,6 +34,14 @@ func ToProducerMessage[T any](defaultTopic string, message kafka.TypedMessage[T]
 	producerMessage := &sarama.ProducerMessage{
 		Topic: resolveTopic(defaultTopic, message.Topic),
 		Value: sarama.ByteEncoder(payload),
+		Metadata: producerMessageMetadata[T]{
+			typedMessage: kafka.TypedMessage[T]{
+				Topic:   resolveTopic(defaultTopic, message.Topic),
+				Key:     message.Key,
+				Headers: cloneHeaders(message.Headers),
+				Value:   message.Value,
+			},
+		},
 	}
 	if message.Key != "" {
 		producerMessage.Key = sarama.StringEncoder(message.Key)
@@ -44,6 +56,23 @@ func ToProducerMessage[T any](defaultTopic string, message kafka.TypedMessage[T]
 		}
 	}
 	return producerMessage, nil
+}
+
+func ExtractTypedMessage[T any](message *sarama.ProducerMessage) (*kafka.TypedMessage[T], bool) {
+	if message == nil || message.Metadata == nil {
+		return nil, false
+	}
+
+	if metadata, ok := message.Metadata.(producerMessageMetadata[T]); ok {
+		typedMessage := metadata.typedMessage
+		return &typedMessage, true
+	}
+	if metadata, ok := message.Metadata.(*producerMessageMetadata[T]); ok && metadata != nil {
+		typedMessage := metadata.typedMessage
+		return &typedMessage, true
+	}
+
+	return nil, false
 }
 
 func resolveTopic(defaultTopic string, messageTopic string) string {
@@ -64,4 +93,17 @@ func MessagePayloadSize(message *sarama.ProducerMessage) int {
 	}
 
 	return len(payload)
+}
+
+func cloneHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	cloned := make(map[string]string, len(headers))
+	for key, value := range headers {
+		cloned[key] = value
+	}
+
+	return cloned
 }
