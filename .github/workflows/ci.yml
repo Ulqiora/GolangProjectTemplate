@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
-      GOCACHE: ${{ runner.temp }}/go-build
+      GOCACHE: /tmp/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
-      GOCACHE: ${{ runner.temp }}/go-build
+      GOCACHE: /tmp/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
-      GOCACHE: ${{ runner.temp }}/go-build
+      GOCACHE: /tmp/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
-      GOCACHE: ${{ runner.temp }}/go-build
+      GOCACHE: /tmp/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -136,7 +136,7 @@ jobs:
     name: Security
     runs-on: ubuntu-latest
     env:
-      GOCACHE: ${{ runner.temp }}/go-build
+      GOCACHE: /tmp/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
