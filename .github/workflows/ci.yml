@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
+      GOCACHE: ${{ runner.temp }}/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
+      GOCACHE: ${{ runner.temp }}/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,24 +68,25 @@ jobs:
           cache: true
 
       - name: Run tests with coverage
-        run: go test -count=1 -covermode=atomic -coverprofile=coverage.out ./...
+        run: |
+          mkdir -p .coverage
+          go test -count=1 -covermode=atomic -coverprofile=.coverage/coverage.out ./...
 
       - name: Print total coverage
-        run: go tool cover -func=coverage.out | tee coverage.txt
+        run: go tool cover -func=.coverage/coverage.out | tee .coverage/coverage.txt
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
         with:
           name: coverage
-          path: |
-            coverage.out
-            coverage.txt
+          path: .coverage/
 
   race:
     name: Race Tests
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=vendor
+      GOCACHE: ${{ runner.temp }}/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -100,6 +103,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -mod=vendor
+      GOCACHE: ${{ runner.temp }}/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -110,15 +116,27 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
-          args: --timeout=5m --modules-download-mode=vendor
+      - name: Check formatting
+        run: |
+          files="$(find . -path ./vendor -prune -o -name '*.go' -print | xargs gofmt -l)"
+          if [ -n "$files" ]; then
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
+          staticcheck ./...
 
   security:
     name: Security
     runs-on: ubuntu-latest
+    env:
+      GOCACHE: ${{ runner.temp }}/go-build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -202,14 +220,14 @@ jobs:
         run: |
           for migration in migrations/clickhouse/*.sql; do
             echo "Applying ${migration}"
-            curl -fsS --data-binary @"${migration}" http://localhost:8123/
+            curl -fsS --data-binary @"${migration}" "http://localhost:8123/?multiquery=1"
           done
 
       - name: Re-apply ClickHouse migrations
         run: |
           for migration in migrations/clickhouse/*.sql; do
             echo "Re-applying ${migration}"
-            curl -fsS --data-binary @"${migration}" http://localhost:8123/
+            curl -fsS --data-binary @"${migration}" "http://localhost:8123/?multiquery=1"
           done
 
   manifests:
@@ -218,9 +236,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v4
 
       - name: Validate docker compose
         run: |
@@ -234,16 +249,10 @@ jobs:
 
       - name: Validate Kubernetes manifests
         run: |
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/namespace.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/postgres.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/kafka.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/schema-registry.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/kafka-init.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/clickhouse.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/migrate.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/jaeger.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/auth.yaml
-          kubectl apply --dry-run=client --validate=false -f deploy/minikube/vk-consumer.yaml
+          curl -fsSL -o /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          /tmp/kubeconform -summary -ignore-missing-schemas deploy/minikube/*.yaml
 
   docker-build:
     name: Docker Build
