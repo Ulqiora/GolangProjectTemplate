@@ -217,7 +217,7 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (*AuthResult, err
 }
 
 func (s *Service) GetYandexAuthURL(ctx context.Context) (string, error) {
-	ctx, span := smarttracing.GetDefaultTracer().Start(ctx, "auth.yandex.get_url")
+	_, span := smarttracing.GetDefaultTracer().Start(ctx, "auth.yandex.get_url")
 	defer span.End()
 
 	if s.stateTokens == nil || s.yandexClient == nil {

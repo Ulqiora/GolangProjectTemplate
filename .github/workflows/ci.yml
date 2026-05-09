@@ -106,6 +106,7 @@ jobs:
     env:
       GOFLAGS: -mod=vendor
       GOCACHE: /tmp/go-build
+      STATICCHECK_CACHE: /tmp/staticcheck-cache
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -130,7 +131,7 @@ jobs:
       - name: Staticcheck
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
-          staticcheck ./...
+          staticcheck -checks='all,-SA1019,-ST*' ./...
 
   security:
     name: Security

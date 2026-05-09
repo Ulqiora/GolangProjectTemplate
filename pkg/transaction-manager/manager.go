@@ -13,8 +13,10 @@ import (
 )
 
 const (
-	TxKey = "transaction-key"
+	TxKey txContextKey = "transaction-key"
 )
+
+type txContextKey string
 
 type TransactionManager interface {
 	Do(context.Context, func(context.Context) error) error
