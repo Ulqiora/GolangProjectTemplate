@@ -107,7 +107,6 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     env:
-      GOFLAGS: -mod=vendor
       GOCACHE: /tmp/go-build
       STATICCHECK_CACHE: /tmp/staticcheck-cache
     steps:
@@ -130,12 +129,12 @@ jobs:
           fi
 
       - name: Vet
-        run: go vet ./...
+        run: GOFLAGS=-mod=vendor go vet ./...
 
       - name: Staticcheck
         run: |
           go install honnef.co/go/tools/cmd/staticcheck@latest
-          "$(go env GOPATH)/bin/staticcheck" -checks='all,-SA1019,-ST*' ./...
+          GOFLAGS=-mod=vendor "$(go env GOPATH)/bin/staticcheck" -checks='all,-SA1019,-ST*' ./...
 
   security:
     name: Security
