@@ -94,6 +94,10 @@ func newFunctionalPostgres(t *testing.T, ctx context.Context, registry prometheu
 func startTestPostgresEnv(t *testing.T, ctx context.Context) *testPostgresEnv {
 	t.Helper()
 
+	if testing.Short() {
+		t.Skip("postgres integration test is skipped in short mode")
+	}
+
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			t.Skipf("postgres test container is unavailable: %v", recovered)

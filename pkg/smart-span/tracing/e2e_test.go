@@ -38,6 +38,10 @@ type jaegerSpan struct {
 }
 
 func TestE2ESmartSpanMiniProjectPublishesTraceToJaeger(t *testing.T) {
+	if testing.Short() {
+		t.Skip("tracing e2e test is skipped in short mode")
+	}
+
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
