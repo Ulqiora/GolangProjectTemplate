@@ -4,6 +4,8 @@ set -e
 
 OUTPUT_DIR=./internal/adapters/primary/generated
 DOCS_OUTPUT_DIR=./api/openapiv2
+STATIC_OPENAPI_DIR=./internal/adapters/primary/web/static
+OPENAPI_FILE=auth.swagger.json
 SRC_DIR=./internal/adapters/primary/proto
 PROTOC_ROOT_DIR=${PWD}/builds/proto
 PROTOC_LIBS=./third_party
@@ -32,9 +34,15 @@ function gen_source {
     local protoc_dir=${PROTOC_ROOT_DIR}/${platform}
     local protoc_bin=${protoc_dir}/bin/protoc
     local protoc_gen_validate=$(command -v protoc-gen-validate)
+    local protoc_gen_openapiv2=${protoc_dir}/protoc-gen-openapiv2
 
     if [[ -z "${protoc_gen_validate}" ]]; then
         echo "protoc-gen-validate not found in PATH" >&2
+        exit 1
+    fi
+
+    if [[ ! -x "${protoc_gen_openapiv2}" ]]; then
+        echo "protoc-gen-openapiv2 not found at ${protoc_gen_openapiv2}" >&2
         exit 1
     fi
 
@@ -52,6 +60,9 @@ function gen_source {
         --plugin="protoc-gen-grpc-gateway=${protoc_dir}/protoc-gen-grpc-gateway" \
           --grpc-gateway_out=${OUTPUT_DIR} \
           --grpc-gateway_opt=paths=source_relative \
+        --plugin="protoc-gen-openapiv2=${protoc_gen_openapiv2}" \
+          --openapiv2_out=${DOCS_OUTPUT_DIR} \
+          --openapiv2_opt=allow_merge=true,merge_file_name=auth,generate_unbound_methods=true \
         --plugin="protoc-gen-validate=${protoc_gen_validate}" \
           --validate_out="lang=go,paths=source_relative:${OUTPUT_DIR}"
 }
@@ -71,6 +82,8 @@ function main {
         echo "${src}"
         gen_source "${platform}" "${src}"
     done
+
+    cp "${DOCS_OUTPUT_DIR}/${OPENAPI_FILE}" "${STATIC_OPENAPI_DIR}/openapi.json"
 
     echo -e "\nDONE"
 }

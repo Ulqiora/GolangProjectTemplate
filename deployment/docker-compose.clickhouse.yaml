@@ -14,6 +14,7 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/users.d/app-user.xml:/etc/clickhouse-server/users.d/app-user.xml:ro
       - ../migrations/clickhouse:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]

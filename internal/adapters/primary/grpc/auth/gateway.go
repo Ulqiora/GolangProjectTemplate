@@ -26,7 +26,7 @@ func RegisterGateway(proxy *servergrpc.GrpcProxy) {
 	})
 	proxy.AddConnService(func(_ context.Context, mux *runtime.ServeMux, _ *grpc.ClientConn) error {
 		handler := web.Handler()
-		for _, path := range []string{"/", "/styles.css", "/app.js", "/anime-hero.png", "/yandex/callback"} {
+		for _, path := range []string{"/", "/styles.css", "/app.js", "/anime-hero.png", "/openapi.json", "/docs", "/yandex/callback"} {
 			if err := mux.HandlePath(http.MethodGet, path, func(w http.ResponseWriter, r *http.Request, _ map[string]string) {
 				handler.ServeHTTP(w, r)
 			}); err != nil {

@@ -31,6 +31,10 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		serveFile(w, r, h.files, "index.html")
 		return
 	}
+	if path == "/docs" || path == "/docs/" {
+		serveFile(w, r, h.files, "openapi.html")
+		return
+	}
 
 	name := path[1:]
 	if _, err := fs.Stat(h.files, name); err != nil {
@@ -44,10 +48,14 @@ func serveFile(w http.ResponseWriter, r *http.Request, files fs.FS, name string)
 	switch name {
 	case "index.html":
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	case "openapi.html":
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	case "styles.css":
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	case "app.js":
 		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+	case "openapi.json":
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	}
 	http.ServeFileFS(w, r, files, name)
 }

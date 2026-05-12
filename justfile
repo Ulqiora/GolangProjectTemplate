@@ -12,6 +12,9 @@ default:
 generate-api:
     ./scripts/genproto.sh
 
+generate-openapi:
+    ./scripts/genproto.sh
+
 test:
     go test ./...
 
